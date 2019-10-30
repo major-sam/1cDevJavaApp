@@ -22,8 +22,6 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import javax.swing.DefaultListModel;
 import javax.swing.JFrame;
 import javax.swing.JList;
@@ -32,54 +30,41 @@ import javax.swing.JTextField;
 
 
 public class Docker {
-    private JButton backup_restore_db_button,quit;
-    private JLabel source_base_size, wmi_space;
-    private JProgressBar progressbar1, progressbar2;
-    private JPanel main, current_tasks;
+    private JButton backup_restore_db_button, quit;
+    private JLabel source_base_size, wmi_space, severs_label, task;
+    private JProgressBar progressbar1, progressbar2, c_task_bar;
+    private JPanel main, current_tasks,
+            current_bak_pan, myBases, my_servers, source_size_pane, server_disk_space, target_search_pan;
     private JList  target_list, source_list;
     private JScrollPane source_scroll, target_scroll;
-    private JCheckBox backup_check;
-    private JLabel current_bak;
-    private JProgressBar c_task_bar;
-    private JLabel task;
-    private JTextField source_search;
-    private JTextField target_search;
+    private JTextField source_search, target_search;
     private JComboBox server_list;
-    private JLabel Severs_label;
-    private JPanel current_bak_pan;
-    private JPanel myBases;
-    private JPanel myservers;
-    private JPanel source_size_pane;
-    private JTextField textField1;
-    private JPanel server_disk_space;
-    private JCheckBox myBasesOnlyCheckBox;
+    private JCheckBox my_bases_only_check_box, create_new_db_check_box;
+    private JTextField new_db_name_text_field, new_db_alias_name_text_field;
     private List source_buffer, target_buffer;
-    private String selected_server, source_base, target_base, disk_name, warn_message, bak_thread_status, res_thread_status, path,
-            data_path, log_path, cur_bak_database_name, cur_bak_database_finish_time, user_name, user_password;
+    private String  bak_thread_status, res_thread_status,
+            cur_bak_database_name, cur_bak_database_finish_time, user_name, user_password;
     private Integer backup_progress, restore_progress, scheduler_counter1, scheduler_counter2;
 
-    private void disable_ui(){
-        server_list.setEnabled(false);
-        source_list.setEnabled(false);
-        target_list.setEnabled(false);
-        backup_restore_db_button.setEnabled(false);
-        backup_check.setEnabled(false);
-        quit.setEnabled(false);
-        source_search.setEnabled(false);
-        target_search.setEnabled(false);
+    private void switch_ui_state(boolean state){
+        server_list.setEnabled(state);
+        source_list.setEnabled(state);
+        target_list.setEnabled(state);
+        backup_restore_db_button.setEnabled(state);
+        quit.setEnabled(state);
+        source_search.setEnabled(state);
+        target_search.setEnabled(state);
     }
-    private void enable_ui(){
-        server_list.setEnabled(true);
-        source_list.setEnabled(true);
-        target_list.setEnabled(true);
-        backup_restore_db_button.setEnabled(true);
-        backup_check.setEnabled(true);
-        quit.setEnabled(true);
-        source_search.setEnabled(true);
-        target_search.setEnabled(true);
+    private void switch_target_ui_state(boolean state){
+        target_list.setEnabled(!state);
+        target_search.setEnabled(!state);
+        my_bases_only_check_box.setEnabled(!state);
+        new_db_name_text_field.setEnabled(state);
+        new_db_alias_name_text_field.setEnabled(state);
+
     }
 
-    private void restore_db(final String server){
+    private void restore_db(final String server, final String target_base, final String data_path, final String log_path){
         Thread restore_db = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -112,7 +97,10 @@ public class Docker {
                     }
                     String query_res="USE [master]\n" +
                             "        ALTER DATABASE ["+ target_base +"] SET SINGLE_USER WITH ROLLBACK IMMEDIATE\n" +
-                            "        RESTORE DATABASE ["+ target_base +"] FROM  DISK = N'current.bak' WITH  FILE = 1,  MOVE N'"+logic_source_base+"' TO N'"+ data_path + target_base +".mdf',  MOVE N'"+logic_source_base_log+"' TO N'"+ log_path + target_base +"_log.ldf',  NOUNLOAD,  REPLACE,  STATS = 5\n" +
+                            "        RESTORE DATABASE ["+ target_base +"] FROM  DISK = N'current.bak' WITH  FILE = 1," +
+                            "        MOVE N'"+logic_source_base+"' TO N'"+ data_path + target_base +".mdf', " +
+                            "        MOVE N'"+logic_source_base_log+"' TO N'"+ log_path + target_base +"_log.ldf'," +
+                            "        NOUNLOAD,  REPLACE,  STATS = 5\n" +
                             "        ALTER DATABASE ["+ target_base +"] SET MULTI_USER";
                     conn = DriverManager.getConnection(url);
                     stmt = conn.createStatement();
@@ -139,7 +127,7 @@ public class Docker {
                 if (res_thread_status != null && res_thread_status.equals("DONE")) {
                     Thread.currentThread().interrupt();
                     scheduler_counter2++;
-                    enable_ui();
+                    switch_ui_state(true);
                     if (scheduler_counter2 == 1)
                     {
                         progressbar2.setValue(100);
@@ -160,13 +148,13 @@ public class Docker {
                             "             ))as 'query'\n" +
                             "             FROM sys.dm_exec_requests r\n" +
                             "             WHERE   command like 'RESTORE%'";
-                    restore_progress = progress(query, server);
+                    restore_progress = progress(query, server, "");
                     progressbar2.setValue(restore_progress);
                 }
             }
         },0,5, TimeUnit.SECONDS);
     }
-    private int progress(String query, String server){
+    private int progress(String query, String server, String backup_name){
         Connection conn1;
         Statement stmt1;
         ResultSet rs1;
@@ -180,9 +168,10 @@ public class Docker {
                 rs1 = stmt1.getResultSet();
             }
             while (rs1.next()){
-                progress = Integer.parseInt(rs1.getString("Complete") ) ;
+                if (rs1.getString("query").contains(backup_name)) {
+                    progress = Integer.parseInt(rs1.getString("Complete"));
+                }
                             }
-
         }
         catch (SQLException ex){
             System.out.println("SQLException: " + ex.getMessage());
@@ -190,18 +179,6 @@ public class Docker {
             System.out.println("VendorError: " + ex.getErrorCode());
         }
         return  progress;
-    }
-    private int disk_space_by_wmi(){
-        String strRegEx = "<[^>]*>";
-        String str_source= wmi_space.getText();
-        String stringToSearch = str_source.replaceAll(strRegEx,"");
-        Pattern p = Pattern.compile(disk_name +".*");
-        Matcher m = p.matcher(stringToSearch);
-        System.out.println(m.find() ?
-                "I found '"+m.group()+"' starting at index "+m.start()+" and ending at index "+m.end()+"." :
-                "I found nothing!");
-
-        return Integer.parseInt(m.group().replaceAll("[^0-9]",""));
     }
     private String db_space(String basename, String server){
         Connection conn;
@@ -228,7 +205,6 @@ public class Docker {
             while (rs.next()){
                 String db_size=rs.getString("FileSize");
                 res = db_size +" MB";
-                disk_name =rs.getString("Drive");
             }
 
         }
@@ -243,6 +219,7 @@ public class Docker {
         Connection conn;
         Statement stmt;
         ResultSet rs;
+        String path = null;
         try {
             String url ="jdbc:sqlserver://"+ server +";user="+user_name+";password="+user_password+"";
             conn =
@@ -264,17 +241,20 @@ public class Docker {
         }
         return path;
     }
-    private String mssql_free_space(String server){
+    private String[] mssql_free_space(String server){
         Connection conn;
         Statement stmt;
         ResultSet rs;
         StringBuilder disk_space = new StringBuilder();
-        String query ="SELECT DISTINCT dovs.logical_volume_name AS LogicalName,\n" +
-                "Substring(dovs.volume_mount_point,0,3) AS Drive,\n" +
-                "CONVERT(INT,dovs.available_bytes/1048576.0) AS FreeSpaceInMB\n" +
-                "FROM sys.master_files mf\n" +
-                "CROSS APPLY sys.dm_os_volume_stats(mf.database_id, mf.FILE_ID) dovs\n" +
-                "ORDER BY Drive ASC";
+        String bak_disk_free = null;
+        String sql_db_disk_free = null;
+        String bak_disk = "K";
+        String sqlDB_disk = "D";
+        String disk_start_style;
+        String disk_end_style;
+        String size_start_style;
+        String size_end_style;
+        String query ="EXEC MASTER..xp_fixeddrives;";
         try {
             String url ="jdbc:sqlserver://"+ server +";user="+user_name+";password="+user_password+"";
             conn = DriverManager.getConnection(url);
@@ -283,8 +263,43 @@ public class Docker {
             if (stmt.execute(query)) {
                 rs = stmt.getResultSet();
             }
+            boolean is_true = true;
             while (rs.next()){
-                disk_space.append("\n").append(rs.getString("Drive")).append(" Free: ").append(rs.getString("FreeSpaceInMB")).append(" MB<br/>");
+                if (rs.getString("drive").equals(bak_disk)){
+                    disk_start_style = "<font color=#005ef5>";
+                    disk_end_style = "</font>";
+                    bak_disk_free = rs.getString("MB free");
+                }
+                else if ( rs.getString("drive").equals(sqlDB_disk)){
+                    disk_start_style = "<font color=#067a00>";
+                    disk_end_style = "</font>";
+                    sql_db_disk_free = rs.getString("MB free");
+                }
+                else {
+                    disk_start_style = "";
+                    disk_end_style = "";
+                }
+                if (Integer.parseInt(rs.getString("MB free"))< 3000){
+                    size_start_style = "<font color=#f54242>";
+                    size_end_style = "</font>";
+                }
+                else {
+                    size_start_style = "";
+                    size_end_style = "";
+                }
+                if (is_true){
+                    disk_space.append("\n").append(disk_start_style).append(rs.getString("drive"))
+                            .append(disk_end_style).append(":\\ Free: ")
+                            .append(size_start_style).append(rs.getString("MB free")).append(size_end_style)
+                            .append(" MB   |  ");
+                }
+                else {
+                    disk_space.append(disk_start_style).append(rs.getString("drive"))
+                            .append(disk_end_style).append(":\\ Free: ")
+                            .append(size_start_style).append(rs.getString("MB free")).append(size_end_style)
+                            .append(" MB<br/>");
+                }
+                is_true = !is_true;
             }
         }
         catch (SQLException ex){
@@ -292,7 +307,7 @@ public class Docker {
             System.out.println("SQLState: " + ex.getSQLState());
             System.out.println("VendorError: " + ex.getErrorCode());
         }
-        return disk_space.toString();
+        return new String[]{disk_space.toString(), bak_disk_free, sql_db_disk_free};
     }
     private List mssql_get_db_list(String server){
         Connection conn;
@@ -320,35 +335,6 @@ public class Docker {
             System.out.println("VendorError: " + ex.getErrorCode());
         }
         return work_base;
-    }
-    private String last_backup(String server){
-        Connection conn;
-        Statement stmt;
-        ResultSet rs;
-        String text = null;
-        try {
-            String url ="jdbc:sqlserver://"+ server +";user="+user_name+";password="+user_password+"";
-            conn =
-                    DriverManager.getConnection(url);
-            stmt = conn.createStatement();
-            String query="RESTORE HEADERONLY  FROM DISK='current.bak'";
-            rs = stmt.executeQuery(query);
-            if (stmt.execute(query)) {
-                rs = stmt.getResultSet();
-            }
-            while (rs.next()){
-                cur_bak_database_name = rs.getString("DatabaseName");
-                cur_bak_database_finish_time = rs.getString("BackupFinishDate");
-            }
-            text = "<html>Текущий бэкап:<br/>"
-                    + cur_bak_database_name +"<br/>"+ cur_bak_database_finish_time +"<html>" ;
-        }
-        catch (SQLException ex){
-            System.out.println("SQLException: " + ex.getMessage());
-            System.out.println("SQLState: " + ex.getSQLState());
-            System.out.println("VendorError: " + ex.getErrorCode());
-        }
-        return text;
     }
     private static List getItems(DefaultListModel model) {
         List list = new ArrayList();
@@ -449,12 +435,12 @@ public class Docker {
 //        }
 //        base_lists.add(all_list);
         server_list.setModel(s_model);
-        selected_server = mssql_servers[0];
+        final String[] selected_server = {mssql_servers[0]};
         source_scroll.setViewportView(source_list);
         target_scroll.setViewportView(target_list);
         final DefaultListModel sdb  = new DefaultListModel();
         final DefaultListModel tdb = new DefaultListModel();
-        List<String> bases_on_server = base_lists.get(base_dictionary.get(selected_server));
+        List<String> bases_on_server = base_lists.get(base_dictionary.get(selected_server[0]));
         List<String> bases_on_dev_server = base_lists.get(base_dictionary.get(dev_server));
         for (String base: bases_on_server) {
             sdb.addElement(base);
@@ -466,71 +452,80 @@ public class Docker {
         target_buffer = getItems(tdb);
         source_list.setModel(sdb);
         target_list.setModel(tdb);
+        final String[] source_base_name = {null};
+        final String[] target_base = {null};
         server_list.addItemListener(new ItemListener() {
             @Override
             public void itemStateChanged(ItemEvent itemEvent) {
                 if (itemEvent.getStateChange() == ItemEvent.SELECTED){
-                    selected_server=(String) itemEvent.getItem();
+                    selected_server[0] = (String) itemEvent.getItem();
                 }
                 sdb.clear();
                 source_list.setModel(sdb);
                 target_list.setModel(tdb);
-                List<String> bases_on_server = base_lists.get(base_dictionary.get(selected_server));
+                List<String> bases_on_server = base_lists.get(base_dictionary.get(selected_server[0]));
 //                List<String> bases_on_dev_server = base_lists.get(base_dictionary.get(dev_server));
                 for (String base: bases_on_server) {
                     sdb.addElement(base);
                 }
                 source_list.setModel(sdb);
+                source_base_name[0] =(String) source_list.getSelectedValue();
             }
         });
-        wmi_space.setText("<html>"+ mssql_free_space(dev_server) + "<html>");
+        String free_space_on_disk = mssql_free_space(dev_server)[0];
+        final int sql_disk =Integer.parseInt(mssql_free_space(dev_server)[1]);
+        final int bak_disk =Integer.parseInt(mssql_free_space(dev_server)[2]);
+        wmi_space.setText("<html>"+ free_space_on_disk + "<html>");
         String get_data_path= "select  SERVERPROPERTY('InstanceDefaultDataPath') as a";
         String get_log_path= "select  serverproperty('InstanceDefaultLogPath') as a";
-        data_path = mssql_get_path(get_data_path, selected_server);
-        log_path = mssql_get_path(get_log_path, selected_server);
+       // String data_path = mssql_get_path(get_data_path, dev_server);
+        //String log_path = mssql_get_path(get_log_path, dev_server);
         source_base_size.setText("");
-        current_bak.setText(last_backup(selected_server));
-        backup_check.setVisible(true);
-        current_bak.setVisible(true);
         backup_restore_db_button.setEnabled(true);
         current_tasks.setVisible(false);
+        final String[] warn_message = new String[1];
         backup_restore_db_button.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
                 int extra = Integer.parseInt(source_base_size.getText().replaceAll(" MB", ""));
-                int server_disk = disk_space_by_wmi();
                 int approve;
-                if (server_disk<extra){
-                    warn_message = "<html><font color=#f54242> НЕДОСТАТОЧНО МЕСТА НА ДИСКЕ   </font>";
+                if (sql_disk<extra){
+                    warn_message[0] = "<html><font color=#f54242> НЕДОСТАТОЧНО МЕСТА НА ДИСКЕ БД</font>";
                      JOptionPane.showConfirmDialog(null,
-                             warn_message, "WARNING", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE);
+                             warn_message[0], "WARNING", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE);
+                    approve = 1;
+                }
+                else if (bak_disk<extra){
+                    warn_message[0] = "<html><font color=#f54242> НЕДОСТАТОЧНО МЕСТА НА ДИСКЕ БЭКАПОВ</font>";
+                    JOptionPane.showConfirmDialog(null,
+                            warn_message[0], "WARNING", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE);
                     approve = 1;
                 }
                 else {
-                    warn_message = "";
                     approve = JOptionPane.showConfirmDialog(null,
-                        "Сервер: \t" + selected_server + "\nИЗ: "+ source_base
+                        "Сервер: \t" + selected_server[0] + "\nИЗ: "+ source_base_name[0]
                                 +"\nДополнительное место: "+extra+" MB"
-                                +"\nСвободно места на диске: "+server_disk+" MB"
-                                +"\n"+ warn_message,
+                                +"\nСвободно места на диске бд: "+sql_disk+" MB"
+                                +"\nСвободно места на диске бэапов: "+bak_disk+" MB"
+                                +"\n",
                         "Подтверждение"
                         , JOptionPane.YES_NO_OPTION);
                 }
                 if(approve == 0){
                     Date date = new Date();
-                    //TODO log_server must be in property file
-                    String log_server = "90500-ws108";
+                    //TODO log_file_path must be in property file
+                    String log_file_path = "\\\\90500-ws108\\log$\\app.log";
                     try {
-                        FileWriter fileWriter  = new FileWriter("\\\\"+log_server+"\\log$\\app.log",true);
+                        FileWriter fileWriter  = new FileWriter(log_file_path,true);
                         PrintWriter log = new PrintWriter(fileWriter);
                         log.println(date+" "+System.getProperty("user.name")+" "+ InetAddress.getLocalHost().getHostName()+
-                                " "+selected_server+" From: \t"+source_base+" To: \t"+target_base);
+                                " "+ selected_server[0] +" From: \t"+ source_base_name[0] +" To: \t"+ target_base[0]);
                         log.close();
                     }
                     catch (IOException e){
                         System.out.println("file not found");
                     }
-                    disable_ui();
+                    switch_ui_state(false);
                     progressbar1.setMinimum(0);
                     progressbar1.setMaximum(100);
                     progressbar1.setValue(0);
@@ -540,7 +535,7 @@ public class Docker {
                     scheduler_counter1 =0;
                     scheduler_counter2 =0;
                     SimpleDateFormat dateFormat = new SimpleDateFormat("HH_ddMMYY");
-                    final String backup_name = System.getProperty("user.name")+"_"+dateFormat.format(date)+"_"+source_base;
+                    final String backup_name = System.getProperty("user.name")+"_"+dateFormat.format(date)+"_"+ source_base_name[0];
                     Thread backup_db = new Thread(new Runnable()  {
                         @Override
                         public void run() {
@@ -549,9 +544,9 @@ public class Docker {
                                 Connection conn;
                                 Statement stmt;
                                 String query="SET NOCOUNT ON " +
-                                        "BACKUP DATABASE ["+ source_base +"] TO  DISK = N'"+backup_name+".bak' WITH NOFORMAT, INIT,  NAME = N'"+
-                                        source_base +"-Full Database Backup', SKIP, NOREWIND, NOUNLOAD,  STATS = 10";
-                                String url ="jdbc:sqlserver://"+selected_server+";user="+user_name+";password="+user_password+"";
+                                        "BACKUP DATABASE ["+ source_base_name[0] +"] TO  DISK = N'"+backup_name+".bak' WITH NOFORMAT, INIT,  NAME = N'"+
+                                        source_base_name[0] +"-Full Database Backup', SKIP, NOREWIND, NOUNLOAD,  STATS = 10";
+                                String url ="jdbc:sqlserver://"+ selected_server[0] +";user="+user_name+";password="+user_password+"";
                                 conn = DriverManager.getConnection(url);
                                 stmt = conn.createStatement();
                                 stmt.executeQuery(query);
@@ -568,44 +563,37 @@ public class Docker {
                             bak_thread_status ="DONE";
                         }
                     });
-                    if (!backup_check.isSelected())  {
-                        System.out.println(backup_check.isSelected());
-                        ScheduledExecutorService scheduler_bak = Executors.newSingleThreadScheduledExecutor();
-                        scheduler_bak.schedule(backup_db, 1, TimeUnit.SECONDS);
-                        final ScheduledExecutorService scheduled_bak_watch = Executors.newSingleThreadScheduledExecutor();
-                        scheduled_bak_watch.scheduleAtFixedRate(new Runnable() {
-                            @Override
-                            public void run() {
-                                if (bak_thread_status != null && bak_thread_status.equals("DONE")) {
-                                    Thread.currentThread().interrupt();
-                                    scheduler_counter1++;
-                                    if (scheduler_counter1 == 2)
-                                    {
-                                        bak_thread_status = "EXECUTED";
-                                        scheduled_bak_watch.shutdown();
-                                        progressbar1.setValue(100);
-                                      //  restore_db(selected_server);
-                                    }
-                                }
-                                if (bak_thread_status != null && bak_thread_status.equals("WORKING")) {
-                                    String query="SELECT  r.session_id AS [Session_Id]\n" +
-                        "             ,CONVERT(NUMERIC(6, 0), r.percent_complete) AS [Complete]\n" +
-                        "             ,CONVERT(VARCHAR(1000), (\n" +
-                        "             SELECT SUBSTRING(TEXT, r.statement_start_offset / 2,1000)  \n" +
-                        "             FROM sys.dm_exec_sql_text(sql_handle)\n" +
-                        "             ))as 'query'\n" +
-                        "             FROM sys.dm_exec_requests r\n" +
-                        "             WHERE   command like 'BACKUP%'";
-                                    backup_progress = progress(query, selected_server);
-                                    progressbar1.setValue(backup_progress);
+                    ScheduledExecutorService scheduler_bak = Executors.newSingleThreadScheduledExecutor();
+                    scheduler_bak.schedule(backup_db, 1, TimeUnit.SECONDS);
+                    final ScheduledExecutorService scheduled_bak_watch = Executors.newSingleThreadScheduledExecutor();
+                    scheduled_bak_watch.scheduleAtFixedRate(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (bak_thread_status != null && bak_thread_status.equals("DONE")) {
+                                Thread.currentThread().interrupt();
+                                scheduler_counter1++;
+                                if (scheduler_counter1 == 2)
+                                {
+                                    bak_thread_status = "EXECUTED";
+                                    scheduled_bak_watch.shutdown();
+                                    progressbar1.setValue(100);
+                                  //  restore_db(selected_server);
                                 }
                             }
-                        },0,5, TimeUnit.SECONDS);
-                    }
-                    else {
-                        progressbar1.setValue(100);
-                     //   restore_db(selected_server);
-                    }
+                            if (bak_thread_status != null && bak_thread_status.equals("WORKING")) {
+                                String query="SELECT  r.session_id AS [Session_Id]\n" +
+                    "             ,CONVERT(NUMERIC(6, 0), r.percent_complete) AS [Complete]\n" +
+                    "             ,CONVERT(VARCHAR(1000), (\n" +
+                    "             SELECT SUBSTRING(TEXT, r.statement_start_offset / 2,1000)  \n" +
+                    "             FROM sys.dm_exec_sql_text(sql_handle)\n" +
+                    "             ))as 'query'\n" +
+                    "             FROM sys.dm_exec_requests r\n" +
+                    "             WHERE   command like 'BACKUP%'";
+                                backup_progress = progress(query, selected_server[0], backup_name);
+                                progressbar1.setValue(backup_progress);
+                            }
+                        }
+                    },0,5, TimeUnit.SECONDS);
                 }
             }
         });
@@ -618,27 +606,31 @@ public class Docker {
         source_list.addListSelectionListener(new ListSelectionListener() {
             @Override
             public void valueChanged(ListSelectionEvent e) {
-                source_base = (String) source_list.getSelectedValue();
-                source_base_size.setText(db_space(source_base, selected_server));
+                source_base_name[0] = (String) source_list.getSelectedValue();
+                source_base_size.setText(db_space(source_base_name[0], selected_server[0]));
             }
         });
         target_list.addListSelectionListener(new ListSelectionListener() {
             @Override
             public void valueChanged(ListSelectionEvent e) {
-                target_base = (String) target_list.getSelectedValue();
-                db_space(target_base, selected_server);
+                target_base[0] = (String) target_list.getSelectedValue();
+                db_space(target_base[0], selected_server[0]);
             }
         });
-        backup_check.addItemListener(new ItemListener() {
+        create_new_db_check_box.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                    switch_target_ui_state(create_new_db_check_box.isSelected());
+            }
+        });
+        my_bases_only_check_box.addItemListener(new ItemListener() {
             @Override
             public void itemStateChanged(ItemEvent e) {
                 if(e.getStateChange() == ItemEvent.SELECTED){
-                    source_list.setEnabled(false);
-                    db_space(source_base, selected_server);
+                    target_search.setText(System.getProperty("user.name"));
                 }
                 else {
-                    source_list.setEnabled(true);
-                    db_space(source_base, selected_server);
+                    target_search.setText("");
                 }
             }
         });
@@ -663,7 +655,6 @@ public class Docker {
             @Override public void insertUpdate(DocumentEvent e) { filter(); }
             @Override public void removeUpdate(DocumentEvent e) { filter(); }
             @Override public void changedUpdate(DocumentEvent e) { filter();}
-
             private void filter() {
                 DefaultListModel model1 = (DefaultListModel) target_list.getModel();
                 model1.clear();
@@ -686,8 +677,6 @@ public class Docker {
         frame.pack();
         frame.setVisible(true);
         current_tasks.setVisible(false);
-        backup_check.setVisible(false);
-        current_bak.setVisible(false);
     }
 
     public static void main(String[] args){
