@@ -38,16 +38,17 @@ public class Docker {
     private JPanel main;
     private JList  target_list, source_list;
     private JScrollPane source_scroll, target_scroll;
-    private JTextField source_search, target_search, new_db_comment, new_db_alias_name,run_1c_custom_params;
+    private JTextField source_search, target_search, new_infobase_comment, new_infobase_alias_name,
+            run_1c_custom_params, life_time;
     public  JComboBox server_list, server_1c_ver, dev_prod_switch;
     private JCheckBox my_bases_only_check_box, create_new_db_check_box;
-    private JTextField life_time;
     private JLabel source_base_creation_date;
     private JLabel target_base_creation_date;
     private JLabel target_base_size;
+    private JButton dev_base_renew;
     private List source_buffer, target_buffer;
     static String user_name, user_password;
-    private Integer backup_progress, restore_progress, scheduler_counter1, scheduler_counter2;
+    private Integer backup_progress, restore_progress;
 
     private static Path currentRelativePath = Paths.get("conf/default.properties");
     static String default_property = currentRelativePath.toAbsolutePath().toString();
@@ -72,19 +73,6 @@ public class Docker {
         }
         return result;
     }
-    static ArrayList<String> run_shell_command(String[] command) throws IOException {
-        ProcessBuilder builder = new ProcessBuilder(command);
-        builder.redirectErrorStream(true);
-        Process process = builder.start();
-        InputStream is = process.getInputStream();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-        String line;
-        ArrayList<String> lines = new ArrayList<String>();
-        while ((line = reader.readLine()) != null) {
-            lines.add(line);
-        }
-        return lines;
-    }
     private void enable_ui(boolean state){
         create_new_db_check_box.setEnabled(state);
         dev_prod_switch.setEnabled(state);
@@ -106,21 +94,23 @@ public class Docker {
         quit.setEnabled(state);
         source_search.setEnabled(state);
         target_search.setEnabled(state);
-        new_db_comment.setEnabled(state);
-        new_db_alias_name.setEnabled(state);
+        new_infobase_comment.setEnabled(state);
+        new_infobase_alias_name.setEnabled(state);
         my_bases_only_check_box.setEnabled(state);
         life_time.setEnabled(state);
-        create_new_db_check_box.setSelected(!state);
-        server_1c_ver.setEnabled(!state);
-        new_db_alias_name.setEnabled(!state);
-        new_db_comment.setEnabled(!state);
+        server_1c_ver.setEnabled(state);
+        new_infobase_alias_name.setEnabled(state);
+        new_infobase_comment.setEnabled(state);
+        if (state){
+            dev_prod_switch.setSelectedItem("dev");
+        }
     }
     private void enable_ui_target(boolean state){
         target_list.setEnabled(!state);
         target_search.setEnabled(!state);
         my_bases_only_check_box.setEnabled(!state);
-        new_db_comment.setEnabled(state);
-        new_db_alias_name.setEnabled(state);
+        new_infobase_comment.setEnabled(state);
+        new_infobase_alias_name.setEnabled(state);
         server_1c_ver.setEnabled(state);
         life_time.setEnabled(state);
     }
@@ -156,7 +146,7 @@ public class Docker {
 
     }
     private void backup_db(final String selected_server, final String source_base_name, final String backup_name,
-                           final String target_base_name , final String dev_server, final String data_path, final String log_path,
+                           final String target_base_name , final String dev_server,
                            final String backup_dir, final String server_1c, final String path_to_1c){
         enable_ui(false);
         progressbar1.setMinimum(0);
@@ -165,9 +155,6 @@ public class Docker {
         progressbar2.setMinimum(0);
         progressbar2.setMaximum(100);
         progressbar2.setValue(0);
-        scheduler_counter1 =0;
-        scheduler_counter2 =0;
-        SimpleDateFormat dateFormat = new SimpleDateFormat("HHmmss_ddMMYY");
         final boolean[] bak_thread_status = {false};
         Thread backup_db = new Thread(new Runnable()  {
             @Override
@@ -201,33 +188,35 @@ public class Docker {
             @Override
             public void run() {
                 if (bak_thread_status[0]) {
-                    Thread.currentThread().interrupt();
-                    scheduler_counter1++;
-                    if (scheduler_counter1 == 2)
-                    {
-                        scheduled_bak_watch.shutdown();
-                        progressbar1.setValue(100);
-                        if (create_new_db_check_box.isSelected()){
-                            restore_db(selected_server, dev_server, backup_name, data_path,
-                                    log_path, backup_name, backup_dir);
-                            String ver =(String) server_1c_ver.getSelectedItem();
-                            String infobase_name = new_db_alias_name.getText();
-                            String description = new_db_comment.getText();
-                            try {
-                                Docker1C.create_1c_base(server_1c, dev_server, ver,backup_name, path_to_1c, infobase_name, description);
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
+                    String ver =(String) server_1c_ver.getSelectedItem();
+                    Date updated_description = new Date();
+                    SimpleDateFormat dateFormat = new SimpleDateFormat("HH-mm-ss_ddMMYY");
+                    String description = new_infobase_comment.getText()+","+dateFormat.format(updated_description)+
+                            ","+life_time.getText();
+                    progressbar1.setValue(100);
+                    if (create_new_db_check_box.isSelected()){
+                        try {
+                            String infobase_name = new_infobase_alias_name.getText();
+                            Docker1C.create_1c_base(server_1c, dev_server, ver, backup_name, path_to_1c, description);
+                            Docker1C.add_infobase_to_list(server_1c,ver,backup_name,infobase_name);
+                        } catch (IOException e) {
+                            e.printStackTrace();
                         }
-                        else {
-                            try {
-                                Docker1C.create_1c_base(selected_server, dev_server, target_base_name, data_path,
-                                       log_path, backup_name, backup_dir);
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
+                        restore_db(selected_server, dev_server, backup_name, backup_name, backup_dir);
+                    }
+                    else {
+                        restore_db(selected_server, dev_server, target_base_name, backup_name, backup_dir);
+                        try {
+                            description ="Обновлено базой "+ backup_name+" пользователем "+
+                                    System.getProperty("user.name")+","+dateFormat.format(updated_description);
+                            Docker1C.set_infobase_description(server_1c,ver,path_to_1c,target_base_name,description);
+                        } catch (IOException e) {
+                            e.printStackTrace();
                         }
                     }
+                    Thread.currentThread().interrupt();
+                    scheduled_bak_watch.shutdown();
+
                 }
                 else {
                     String query_salt ="'BACKUP%'";
@@ -235,11 +224,14 @@ public class Docker {
                     progressbar1.setValue(backup_progress);
                 }
             }
-        },0,5, TimeUnit.SECONDS);
+        },0,2, TimeUnit.SECONDS);
     }
-    private void restore_db(final String source_server,final String target_server, final String target_base,
-                            final String data_path, final String log_path, final String backup_name,
+    private void restore_db(final String source_server,final String target_server, final String target_base, final String backup_name,
                             final String backup_sh_folder) {
+        String get_data_path= "select  SERVERPROPERTY('InstanceDefaultDataPath') as a",
+                get_log_path= "select  serverproperty('InstanceDefaultLogPath') as a";
+        final String data_path = DockerSQL.get_mssql_path(get_data_path, target_server);
+        final String log_path = DockerSQL.get_mssql_path(get_log_path, target_server);
         final boolean[] res_thread_status = {false};
         String path = "";
         if (!source_server.equals(target_server)) {
@@ -263,8 +255,8 @@ public class Docker {
                         rs = stmt.getResultSet();
                     }
                     while (rs.next()){
-                        String type=rs.getString("Type");
-                        String name=rs.getString("LogicalName");
+                        String type=rs.getString("Type"),
+                                name=rs.getString("LogicalName");
 
                         if (type.matches(".*D.*"))
                         {
@@ -308,7 +300,6 @@ public class Docker {
                 res_thread_status[0] = true;
             }
         });
-        scheduler_counter2 = 0;
         ScheduledExecutorService scheduler_res = Executors.newSingleThreadScheduledExecutor();
         scheduler_res.schedule(restore_db, 1, TimeUnit.SECONDS);
         final ScheduledExecutorService scheduled_res_watch = Executors.newSingleThreadScheduledExecutor();
@@ -317,9 +308,6 @@ public class Docker {
             public void run() {
                 if (res_thread_status[0]) {
                     Thread.currentThread().interrupt();
-                    scheduler_counter2++;
-                    enable_ui(true);
-
                     List<String> list;
                     list = DockerSQL.get_mssql_db_list(target_server);
                     final DefaultListModel tdb = new DefaultListModel();
@@ -329,23 +317,19 @@ public class Docker {
                     target_buffer = get_items_for_filter(tdb);
                     target_list.setModel(tdb);
                     target_list.setSelectedIndex(0);
-                    if (scheduler_counter2 == 1)
-                    {
-                        progressbar2.setValue(100);
-                    }
-                    if (scheduler_counter2 == 2)
-                    {
-                        scheduled_res_watch.shutdown();
-                        progressbar2.setValue(100);
-                    }
+                    progressbar2.setValue(100);
+                    DockerSQL.remove_backup(source_server,backup_name);
+                    enable_ui(true);
+                    create_new_db_check_box.setSelected(false);
+                    scheduled_res_watch.shutdown();
                 }
-                if (!res_thread_status[0]) {
+                else  {
                     String query_salt = "'RESTORE%'";
-                    restore_progress = DockerSQL.get_mssql_progress(query_salt, source_server, backup_name);
+                    restore_progress = DockerSQL.get_mssql_progress(query_salt, target_server, backup_name);
                     progressbar2.setValue(restore_progress);
                 }
             }
-        },0,5, TimeUnit.SECONDS);
+        },0,2, TimeUnit.SECONDS);
     }
     private List get_items_for_filter(DefaultListModel model) {
         List list = new ArrayList();
@@ -491,6 +475,7 @@ public class Docker {
         if (!test_admin & !test_owner){
             removeDbButton.setEnabled(false);
         }
+// listeners
         server_list.addItemListener(new ItemListener() {
             @Override
             public void itemStateChanged(ItemEvent itemEvent) {
@@ -499,7 +484,6 @@ public class Docker {
                 }
                 sdb.clear();
                 source_list.setModel(sdb);
-                target_list.setModel(tdb);
                 List<String> bases_on_server = base_lists.get(base_dictionary.get(selected_server[0]));
                 for (String base: bases_on_server) {
                     sdb.addElement(base);
@@ -507,30 +491,24 @@ public class Docker {
                 source_list.setModel(sdb);
                 source_base_name[0] =(String) source_list.getSelectedValue();
                 source_list.setSelectedIndex(0);
-                target_list.setSelectedIndex(0);
             }
         });
         String free_space_on_disk = DockerSQL.get_mssql_free_space(dev_server)[0];
         final int sql_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[1]);
         final int bak_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[2]);
         wmi_space.setText("<html>"+free_space_on_disk+"<html>");
-        String get_data_path= "select  SERVERPROPERTY('InstanceDefaultDataPath') as a";
-        String get_log_path= "select  serverproperty('InstanceDefaultLogPath') as a";
-        final String data_path = DockerSQL.get_mssql_path(get_data_path, dev_server);
-        final String log_path = DockerSQL.get_mssql_path(get_log_path, dev_server);
         final Date d = new Date();
-        SimpleDateFormat dateFormat = new SimpleDateFormat("HHmmss_ddMMYY");
+        SimpleDateFormat dateFormat = new SimpleDateFormat("HH-mm-ss_ddMMYY");
         final String date = dateFormat.format(d);
         final String[] warn_message = new String[1];
-
         backup_restore_db_button.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
                 source_base_name[0] = (String) source_list.getSelectedValue();
                 int extra = Integer.parseInt(DockerSQL.get_mssql_db_size((String)source_list.getSelectedValue(),(String)server_list.getSelectedItem())[0]);
                 int approve = 1;
-                String alias = new_db_alias_name.getText();
-                String comment = new_db_comment.getText();
+                String alias = new_infobase_alias_name.getText();
+                String comment = new_infobase_comment.getText();
                 if (sql_disk<extra){
                     warn_message[0] = "<html><font color=#f54242> НЕДОСТАТОЧНО МЕСТА НА ДИСКЕ БД</font>";
                      JOptionPane.showConfirmDialog(null,
@@ -565,12 +543,21 @@ public class Docker {
                 if(approve == 0){
                     final String backup_name = System.getProperty("user.name")+"_"+source_base_name[0]+"_"+date;
                     wright_log(date,selected_server[0],source_base_name[0],target_base_name[0]);
-                    backup_db(selected_server[0],source_base_name[0],backup_name, target_base_name[0]
-                            ,dev_server,data_path,log_path,backup_dir,server_1c,path_to_1c);
+                    backup_db(selected_server[0], source_base_name[0], backup_name, target_base_name[0]
+                            ,dev_server, backup_dir, server_1c, path_to_1c);
                 }
             }
         });
-
+        removeDbButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                try {
+                    Docker1C.remove_1c_base(dev_server,target_base_name[0],path_to_1c,(String) server_1c_ver.getSelectedItem());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
         quit.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
@@ -653,6 +640,18 @@ public class Docker {
                 target_list.setModel(model1);
             }
         });
+        dev_base_renew.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+            List<String> list = DockerSQL.get_mssql_db_list(dev_server);
+            tdb.clear();
+            for (String base : list){
+                tdb.addElement(base);
+            }
+            target_list.setModel(tdb);
+            target_list.setSelectedIndex(0);
+            }
+        });
         dev_prod_switch.addItemListener(new ItemListener() {
             @Override
             public void itemStateChanged(ItemEvent itemEvent) {
@@ -675,6 +674,10 @@ public class Docker {
             }
         });
         ImageIcon img = new ImageIcon("conf/icon.png");
+        ImageIcon refresh_png = new ImageIcon("conf/refresh.png");
+        Image image = refresh_png.getImage();
+        Image refresh_img = image.getScaledInstance(24,24,  java.awt.Image.SCALE_SMOOTH);
+        dev_base_renew.setIcon(new ImageIcon(refresh_img));
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setIconImage(img.getImage());
         frame.setMinimumSize(new Dimension(1000, 700));

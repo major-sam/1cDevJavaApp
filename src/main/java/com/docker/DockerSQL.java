@@ -206,4 +206,48 @@ class DockerSQL {
     }
     return work_base;
     }
+    static void remove_backup(String server,String backup_name ){
+        Connection conn1;
+        Statement stmt1;
+        ResultSet rs1;
+        String query = "DECLARE @path NVARCHAR(4000)\n" +
+                "DECLARE @bak NVARCHAR(4000)\n" +
+                "EXEC master.dbo.xp_instance_regread\n" +
+                "            N'HKEY_LOCAL_MACHINE',\n" +
+                "            N'Software\\Microsoft\\MSSQLServer\\MSSQLServer',N'BackupDirectory',\n" +
+                "            @path OUTPUT, \n" +
+                "            'no_output'\n" +
+                "set @bak = @path +'\\"+backup_name+".bak'\n" +
+                "EXECUTE master.dbo.xp_delete_file 0,@bak";
+        try {
+            String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+"";
+            conn1 = DriverManager.getConnection(url);
+            stmt1 = conn1.createStatement();
+            stmt1.executeQuery(query);
+        }
+        catch (SQLException ex){
+            System.out.println("SQLException: "+ex.getMessage());
+            System.out.println("SQLState: "+ex.getSQLState());
+            System.out.println("VendorError: "+ex.getErrorCode());
+        }
+    }
+    static void remove_db(String server, String db_name){
+        Connection conn1;
+        Statement stmt1;
+        ResultSet rs1;
+        String query = "EXEC msdb.dbo.sp_delete_database_backuphistory @database_name = N'"+ db_name +"'\n" +
+                "USE [master]\n" +
+                "DROP DATABASE ["+db_name+"];";
+        try {
+            String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+"";
+            conn1 = DriverManager.getConnection(url);
+            stmt1 = conn1.createStatement();
+            stmt1.executeQuery(query);
+        }
+        catch (SQLException ex){
+            System.out.println("SQLException: "+ex.getMessage());
+            System.out.println("SQLState: "+ex.getSQLState());
+            System.out.println("VendorError: "+ex.getErrorCode());
+        }
+    }
 }
