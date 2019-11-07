@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.sql.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -97,6 +98,10 @@ public class Docker {
         server_1c_ver.setEnabled(state);
         add_new_infobase_alias_name.setEnabled(state);
         add_new_infobase_comment.setEnabled(state);
+        if(state){
+            add_new_infobase_alias_name.setText("");
+            add_new_infobase_comment.setText("");
+        }
     }
     private void enable_ui_target(boolean state){
         target_list.setEnabled(!state);
@@ -123,19 +128,30 @@ public class Docker {
             quit.setEnabled(true);
         }
     }
-    private void wright_log(String  date, String selected_server, String source_base_name ,String target_base_name){
-        //TODO log_file_path must be in property file
-        String log_file_path = "\\\\90500-ws108\\log$\\app.log";
-        try {
-            FileWriter fileWriter  = new FileWriter(log_file_path,true);
-            PrintWriter log = new PrintWriter(fileWriter);
-            log.println(date+" "+System.getProperty("user.name")+" "+InetAddress.getLocalHost().getHostName()+
-                    " "+selected_server+" From: \t"+source_base_name+" To: \t"+target_base_name);
-            log.close();
+    private void wright_log(String  date, String selected_server, String source_base_name ,String target_base_name) throws IOException {
+        String log_file_path = get_property(default_property,"log_file",null)[0].replace("\\log","\\log$");
+        String line ;
+        if (create_new_db_check_box.isSelected()){
+            line = date+" "+System.getProperty("user.name")+" "+InetAddress.getLocalHost().getHostName()+
+                " "+selected_server+" From: \t"+source_base_name+" To: \t"+target_base_name;
         }
-        catch (IOException e){
-            System.out.println("file not found");
+        else {
+            line = date+" "+System.getProperty("user.name")+" "+InetAddress.getLocalHost().getHostName()+
+                    " "+selected_server+" NEW DB: \t"+target_base_name;
         }
+        new File(log_file_path);
+        byte[] strToBytes = line.getBytes();
+        Files.write(Paths.get(log_file_path), strToBytes, StandardOpenOption.APPEND);
+//        try {
+//            FileWriter fileWriter  = new FileWriter(log_file_path,true);
+//            PrintWriter log = new PrintWriter(fileWriter);
+//            log.println(date+" "+System.getProperty("user.name")+" "+InetAddress.getLocalHost().getHostName()+
+//                    " "+selected_server+" From: \t"+source_base_name+" To: \t"+target_base_name);
+//            log.close();
+//        }
+//        catch (IOException e){
+//            System.out.println("file not found");
+//        }
 
     }
     private void backup_db(final String selected_server, final String source_base_name, final String backup_name,
@@ -618,7 +634,11 @@ public class Docker {
                 }
                 if(approve == 0){
                     final String backup_name = System.getProperty("user.name")+"_"+source_base_name[0]+"_"+date;
-                    wright_log(date,selected_server[0],source_base_name[0],target_base_name[0]);
+                    try {
+                        wright_log(date,selected_server[0],source_base_name[0],target_base_name[0]);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                     backup_db(selected_server[0], source_base_name[0], backup_name, target_base_name[0]
                             ,dev_server, backup_dir, server_1c);
                 }
