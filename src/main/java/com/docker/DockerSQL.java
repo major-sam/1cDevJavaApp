@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 class DockerSQL {
+
+
     private static String user_name = Docker.user_name;
     private static String user_password = Docker.user_password;
 
@@ -41,49 +43,63 @@ class DockerSQL {
         }
         return  progress;
     }
-    static String[] get_mssql_db_size(String basename, String server){
-    Connection conn;
-    Statement stmt,stmt1;
-    ResultSet rs,rs1;
-    String file_size = null;
-    String file_creation_date = null;
-    try {
-        String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+"";
-        conn = DriverManager.getConnection(url);
-        stmt = conn.createStatement();
-        String query="SELECT\n"+
-                "    D.name,\n"+
-                "    Substring((F.physical_name),0,3)  AS Drive,\n"+
-                "    CAST((F.size*8)/1024 AS VARCHAR(26))  AS FileSize\n"+
-                "FROM \n"+
-                "    sys.master_files F\n"+
-                "    INNER JOIN sys.databases D ON D.database_id = F.database_id\n"+
-                "Where type=0 and F.database_id >4 and D.name like '"+basename+"'";
-        rs = stmt.executeQuery(query);
-        if (stmt.execute(query)) {
-            rs = stmt.getResultSet();
+    static String get_mssql_db_creation_date(String basename, String server) {
+        Connection conn;
+        Statement stmt;
+        ResultSet rs;
+        String file_creation_date = null;
+        try {
+            String url = "jdbc:sqlserver://" + server + ";user=" + user_name + ";password=" + user_password + "";
+            conn = DriverManager.getConnection(url);
+            stmt = conn.createStatement();
+            String query = "SELECT create_date\n" +
+                    "FROM sys.databases\n" +
+                    "WHERE name = '" + basename + "'";
+            rs = stmt.executeQuery(query);
+            if (stmt.execute(query)) {
+                rs = stmt.getResultSet();
+            }
+            while (rs.next()) {
+                file_creation_date = rs.getString("create_date").split(" ")[0].replace("-", ".");
+            }
+        } catch (SQLException ex) {
+            System.out.println("SQLException: " + ex.getMessage());
+            System.out.println("SQLState: " + ex.getSQLState());
+            System.out.println("VendorError: " + ex.getErrorCode());
         }
-        while (rs.next()){
-            file_size=rs.getString("FileSize");
-        }
-        stmt1 = conn.createStatement();
-        String query1 ="SELECT create_date\n"+
-                "FROM sys.databases\n"+
-                "WHERE name = '"+basename+"'" ;
-        rs1 = stmt1.executeQuery(query1);
-        if (stmt1.execute(query1)) {
-            rs1 = stmt1.getResultSet();
-        }
-        while (rs1.next()){
-            file_creation_date=rs1.getString("create_date").split(" ")[0].replace("-",".");
-        }
+        return file_creation_date;
     }
-    catch (SQLException ex){
-        System.out.println("SQLException: "+ex.getMessage());
-        System.out.println("SQLState: "+ex.getSQLState());
-        System.out.println("VendorError: "+ex.getErrorCode());
-    }
-    return new String[]{file_size,file_creation_date};
+    static String get_mssql_db_size(String basename, String server){
+        Connection conn;
+        Statement stmt;
+        ResultSet rs;
+        String file_size = null;
+        try {
+            String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+"";
+            conn = DriverManager.getConnection(url);
+            stmt = conn.createStatement();
+            String query="SELECT\n"+
+                    "    D.name,\n"+
+                    "    Substring((F.physical_name),0,3)  AS Drive,\n"+
+                    "    CAST((F.size*8)/1024 AS VARCHAR(26))  AS FileSize\n"+
+                    "FROM \n"+
+                    "    sys.master_files F\n"+
+                    "    INNER JOIN sys.databases D ON D.database_id = F.database_id\n"+
+                    "Where type=0 and F.database_id >4 and D.name like '"+basename+"'";
+            rs = stmt.executeQuery(query);
+            if (stmt.execute(query)) {
+                rs = stmt.getResultSet();
+            }
+            while (rs.next()){
+                file_size=rs.getString("FileSize");
+            }
+        }
+        catch (SQLException ex){
+            System.out.println("SQLException: "+ex.getMessage());
+            System.out.println("SQLState: "+ex.getSQLState());
+            System.out.println("VendorError: "+ex.getErrorCode());
+        }
+        return file_size;
     }
     static String get_mssql_path(String query, String server){
     Connection conn;
@@ -209,7 +225,6 @@ class DockerSQL {
     static void remove_backup(String server,String backup_name ){
         Connection conn1;
         Statement stmt1;
-        ResultSet rs1;
         String query = "DECLARE @path NVARCHAR(4000)\n" +
                 "DECLARE @bak NVARCHAR(4000)\n" +
                 "EXEC master.dbo.xp_instance_regread\n" +
@@ -234,7 +249,6 @@ class DockerSQL {
     static void remove_db(String server, String db_name){
         Connection conn1;
         Statement stmt1;
-        ResultSet rs1;
         String query = "EXEC msdb.dbo.sp_delete_database_backuphistory @database_name = N'"+ db_name +"'\n" +
                 "USE [master]\n" +
                 "DROP DATABASE ["+db_name+"];";
@@ -250,4 +264,5 @@ class DockerSQL {
             System.out.println("VendorError: "+ex.getErrorCode());
         }
     }
+
 }
