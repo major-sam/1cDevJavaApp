@@ -49,6 +49,7 @@ public class Docker {
     private static Path currentRelativePath = Paths.get("conf/default.properties");
     static String default_property = currentRelativePath.toAbsolutePath().toString();
     private static Path  localRelativePath = Paths.get(get_property(default_property,"local.property",null)[0]);
+    //TODO resolve 1c bin local path
     static String local_property = localRelativePath.toAbsolutePath().toString();
     static String path_1c_exe = "\\bin\\1cv8.exe";
     static String path_rac_exe = "\\bin\\rac.exe";
@@ -128,31 +129,20 @@ public class Docker {
             quit.setEnabled(true);
         }
     }
-    private void wright_log(String  date, String selected_server, String source_base_name ,String target_base_name) throws IOException {
+    private void wright_log(String  date, String selected_server, String source_base_name ,String target_base_name,String new_base) throws IOException {
         String log_file_path = get_property(default_property,"log_file",null)[0].replace("\\log","\\log$");
         String line ;
         if (create_new_db_check_box.isSelected()){
             line = date+" "+System.getProperty("user.name")+" "+InetAddress.getLocalHost().getHostName()+
-                " "+selected_server+" From: \t"+source_base_name+" To: \t"+target_base_name;
+                " "+selected_server+" From: \t"+source_base_name+" To: \t"+target_base_name + "\n";
         }
         else {
             line = date+" "+System.getProperty("user.name")+" "+InetAddress.getLocalHost().getHostName()+
-                    " "+selected_server+" NEW DB: \t"+target_base_name;
+                    " NEW DB: \t"+new_base + "\n";
         }
         new File(log_file_path);
         byte[] strToBytes = line.getBytes();
         Files.write(Paths.get(log_file_path), strToBytes, StandardOpenOption.APPEND);
-//        try {
-//            FileWriter fileWriter  = new FileWriter(log_file_path,true);
-//            PrintWriter log = new PrintWriter(fileWriter);
-//            log.println(date+" "+System.getProperty("user.name")+" "+InetAddress.getLocalHost().getHostName()+
-//                    " "+selected_server+" From: \t"+source_base_name+" To: \t"+target_base_name);
-//            log.close();
-//        }
-//        catch (IOException e){
-//            System.out.println("file not found");
-//        }
-
     }
     private void backup_db(final String selected_server, final String source_base_name, final String backup_name,
                            final String target_base_name , final String dev_server,
@@ -635,7 +625,7 @@ public class Docker {
                 if(approve == 0){
                     final String backup_name = System.getProperty("user.name")+"_"+source_base_name[0]+"_"+date;
                     try {
-                        wright_log(date,selected_server[0],source_base_name[0],target_base_name[0]);
+                        wright_log(date,selected_server[0],source_base_name[0],target_base_name[0],backup_name);
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -647,10 +637,14 @@ public class Docker {
         removeDbButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
-                try {
-                    Docker1C.remove_1c_base(dev_server,target_base_name[0],(String) server_1c_ver.getSelectedItem());
-                } catch (IOException e) {
-                    e.printStackTrace();
+                int approve = 1;
+                approve = JOptionPane.showConfirmDialog(main,"Удаляем базу "+target_base_name[0]+" ?","Удаление базы", JOptionPane.YES_NO_OPTION);
+                if(approve == 0){
+                    try {
+                        Docker1C.remove_1c_base(dev_server,target_base_name[0],(String) server_1c_ver.getSelectedItem());
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         });
@@ -768,7 +762,7 @@ public class Docker {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
                 try {
-                    Runtime.getRuntime().exec("notepad \\\\90500-ws108\\share\\log\\app.log");
+                    Runtime.getRuntime().exec("notepad "+ get_property(default_property,"log_file",null)[0]);
                 }
                 catch (IOException ex){
                     ex.printStackTrace();
