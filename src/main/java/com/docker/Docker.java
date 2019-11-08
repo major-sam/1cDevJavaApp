@@ -48,13 +48,84 @@ public class Docker {
     private Integer backup_progress, restore_progress;
     private static Path currentRelativePath = Paths.get("conf/default.properties");
     static String default_property = currentRelativePath.toAbsolutePath().toString();
-    private static Path  localRelativePath = Paths.get(get_property(default_property,"local.property",null)[0]);
-    //TODO resolve 1c bin local path
-    static String local_property = localRelativePath.toAbsolutePath().toString();
     static String path_1c_exe = "\\bin\\1cv8.exe";
     static String path_rac_exe = "\\bin\\rac.exe";
-    static String path_to_1c = get_property(default_property,"path_to_1c",null)[0];
 
+    private String check_local_1c_bin(){
+        boolean x64_has_client = false, x86_has_client = false;
+        String[] v = get_property(default_property,"server_1c_ver_with_ras",",");
+        final File  X86_BIN = new File("C:\\Program Files (x86)\\1cv8"),
+                X64_BIN =new File("C:\\Program Files\\1cv8");
+        for (String ver:v){
+            if(!x64_has_client) {
+                String test_path = "C:\\Program Files\\1cv8\\" + ver.split(":")[0];
+                File test = new File(test_path);
+                x64_has_client = (test.exists() && test.isDirectory());
+            }
+            if(!x86_has_client) {
+                String test_path = "C:\\Program Files (x86)\\1cv8\\" + ver.split(":")[0];
+                File test = new File(test_path);
+                x86_has_client = (test.exists() && test.isDirectory());
+            }
+        }
+        String lp;
+        if(X64_BIN.exists() && X64_BIN.isDirectory()&&x64_has_client){
+            lp = X64_BIN.getPath();
+        }
+        else if(X86_BIN.exists() && X86_BIN.isDirectory()&&x86_has_client){
+            lp = X86_BIN.getPath();
+            JOptionPane.showMessageDialog(null, "Не установлен рекомундуемый 64 битный клиент 1с, будет использоваться 32 битный клиент", "Найден 86х клиент 1с",JOptionPane.INFORMATION_MESSAGE);
+        }
+        else{
+            JOptionPane.showMessageDialog(null, "Не найден клиент 1с. Укажите путь до папки 1cv8", "Не найден клиент 1с",JOptionPane.INFORMATION_MESSAGE);
+            JFileChooser f = new JFileChooser();
+            f.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            f.setDialogTitle("Choose path to 1cv8 folder");
+            f.setFileView(new FileView() {
+                @Override
+                public String getName(File f) {
+                    String name = FileSystemView.getFileSystemView().getSystemDisplayName(f);
+                    if(name.equals("")) {
+                        name = FileSystemView.getFileSystemView().getSystemTypeDescription(f);
+                    }
+                    return name;
+                }
+            });
+            f.showSaveDialog(null);
+            Path  localRelativePath = Paths.get(String.valueOf(f.getSelectedFile()));
+            lp = localRelativePath.toAbsolutePath().toString();
+        }
+        if (!lp.endsWith("\\")){
+            lp = lp +"\\";
+        }
+        return lp;
+    }
+    private void check_local_conf(String local_property) throws IOException {
+        String path_to_1c;
+        File local_config = new File(local_property);
+        if(local_config.exists() && !local_config.isDirectory()) {
+            path_to_1c = get_property(local_property,"path_to_1c",null)[0];
+            if (path_to_1c == null || path_to_1c.equals("")){
+                path_to_1c = check_local_1c_bin();
+                Properties prop = new Properties();
+                prop.setProperty("path_to_1c",path_to_1c);
+                prop.store(new FileOutputStream(local_property,true), "\nyour  1c files");
+            }
+        }
+        else{
+            Path path = Paths.get(local_property);
+            try {
+                Files.createDirectories(path.getParent());
+                Files.createFile(path);
+                path_to_1c = check_local_1c_bin();
+                Properties prop = new Properties();
+                prop.setProperty("path_to_1c",path_to_1c);
+                prop.store(new FileOutputStream(local_property,true), "\nyour  1c files");
+            } catch (IOException e) {
+                System.err.println("Cannot create directories - " + e);
+            }
+        }
+    }
     static String[] get_property(String property_file, String property_name, String splitter){
         String[] result = new String[0];
         FileInputStream fis;
@@ -146,7 +217,7 @@ public class Docker {
     }
     private void backup_db(final String selected_server, final String source_base_name, final String backup_name,
                            final String target_base_name , final String dev_server,
-                           final String backup_dir, final String server_1c){
+                           final String backup_dir, final String server_1c,final String path_to_1c){
         enable_ui(false);
         progressbar1.setMinimum(0);
         progressbar1.setMaximum(100);
@@ -155,72 +226,66 @@ public class Docker {
         progressbar2.setMaximum(100);
         progressbar2.setValue(0);
         final boolean[] bak_thread_status = {false};
-        Thread backup_db = new Thread(new Runnable()  {
-            @Override
-            public void run() {
-                try {
-                    Connection conn;
-                    Statement stmt;
-                    String query="SET NOCOUNT ON "+
-                            "BACKUP DATABASE ["+source_base_name+"] TO  DISK = N'"+backup_name+".bak' WITH RETAINDAYS = 3, NOFORMAT, INIT,  NAME = N'"+
-                            source_base_name+"-Full Database Backup', SKIP, NOREWIND, NOUNLOAD,  STATS = 10";
-                    String url ="jdbc:sqlserver://"+selected_server+";user="+user_name+";password="+user_password+"";
-                    conn = DriverManager.getConnection(url);
-                    stmt = conn.createStatement();
-                    stmt.executeQuery(query);
-                    if (stmt.execute(query)) {
-                        stmt.getResultSet();
-                    }
+        Thread backup_db = new Thread(() -> {
+            try {
+                Connection conn;
+                Statement stmt;
+                String query="SET NOCOUNT ON "+
+                        "BACKUP DATABASE ["+source_base_name+"] TO  DISK = N'"+backup_name+".bak' WITH RETAINDAYS = 3, NOFORMAT, INIT,  NAME = N'"+
+                        source_base_name+"-Full Database Backup', SKIP, NOREWIND, NOUNLOAD,  STATS = 10";
+                String url ="jdbc:sqlserver://"+selected_server+";user="+user_name+";password="+user_password+"";
+                conn = DriverManager.getConnection(url);
+                stmt = conn.createStatement();
+                stmt.executeQuery(query);
+                if (stmt.execute(query)) {
+                    stmt.getResultSet();
                 }
-                catch (SQLException ex){
-                    System.out.println("SQLException: "+ex.getMessage());
-                    System.out.println("SQLState: "+ex.getSQLState());
-                    System.out.println("VendorError: "+ex.getErrorCode());
-                }
-                bak_thread_status[0] = true;
             }
+            catch (SQLException ex){
+                System.out.println("SQLException: "+ex.getMessage());
+                System.out.println("SQLState: "+ex.getSQLState());
+                System.out.println("VendorError: "+ex.getErrorCode());
+            }
+            bak_thread_status[0] = true;
         });
         ScheduledExecutorService scheduler_bak = Executors.newSingleThreadScheduledExecutor();
         scheduler_bak.schedule(backup_db, 1, TimeUnit.SECONDS);
         final ScheduledExecutorService scheduled_bak_watch = Executors.newSingleThreadScheduledExecutor();
-        scheduled_bak_watch.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                if (bak_thread_status[0]) {
-                    String ver =(String) server_1c_ver.getSelectedItem();
-                    Date updated_description = new Date();
-                    SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-YYYY HH-mm");
-                    String description = add_new_infobase_comment.getText()+","+dateFormat.format(updated_description);
-                    progressbar1.setValue(100);
-                    if (create_new_db_check_box.isSelected()){
-                        try {
-                            String infobase_name = add_new_infobase_alias_name.getText();
-                            Docker1C.create_1c_base(server_1c, dev_server, ver, backup_name, description);
-                            Docker1C.add_infobase_to_list(server_1c,ver,backup_name,infobase_name);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                        restore_db(selected_server, dev_server, backup_name, backup_name, backup_dir,progressbar2);
+        scheduled_bak_watch.scheduleAtFixedRate(() -> {
+            if (bak_thread_status[0]) {
+                String ver =(String) server_1c_ver.getSelectedItem();
+                Date updated_description = new Date();
+                SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-YYYY HH-mm");
+                String description = add_new_infobase_comment.getText()+","+dateFormat.format(updated_description);
+                progressbar1.setValue(100);
+                if (create_new_db_check_box.isSelected()){
+                    try {
+                        String infobase_name = add_new_infobase_alias_name.getText();
+                        Docker1C.create_1c_base(server_1c, dev_server, ver, backup_name,path_to_1c, description);
+                        Docker1C.add_infobase_to_list(server_1c,ver,backup_name,infobase_name);
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
-                    else {
-                        restore_db(selected_server, dev_server, target_base_name, backup_name, backup_dir,progressbar2);
-                        try {
-                            description ="Обновлено базой "+ backup_name+" пользователем "+
-                                    System.getProperty("user.name")+","+dateFormat.format(updated_description);
-                            Docker1C.set_infobase_description(server_1c,ver,path_to_1c,target_base_name,description);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                    Thread.currentThread().interrupt();
-                    scheduled_bak_watch.shutdown();
-
+                    restore_db(selected_server, dev_server, backup_name, backup_name, backup_dir,progressbar2);
                 }
                 else {
-                    String query_salt ="'BACKUP%'";
-                    backup_progress = DockerSQL.get_mssql_progress(query_salt, selected_server, backup_name);
-                    progressbar1.setValue(backup_progress);
+                    restore_db(selected_server, dev_server, target_base_name, backup_name, backup_dir,progressbar2);
+                    try {
+                        description ="Обновлено базой "+ backup_name+" пользователем "+
+                                System.getProperty("user.name")+","+dateFormat.format(updated_description);
+                        Docker1C.set_infobase_description(server_1c,ver,path_to_1c,target_base_name,description);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 }
+                Thread.currentThread().interrupt();
+                scheduled_bak_watch.shutdown();
+
+            }
+            else {
+                String query_salt ="'BACKUP%'";
+                backup_progress = DockerSQL.get_mssql_progress(query_salt, selected_server, backup_name);
+                progressbar1.setValue(backup_progress);
             }
         },0,2, TimeUnit.SECONDS);
     }
@@ -236,97 +301,91 @@ public class Docker {
             path = "\\\\" + source_server + "\\" + backup_sh_folder + "\\";
         }
         final String finalPath = path;
-        Thread restore_db = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    String logic_source_base= null ,logic_source_base_log=null;
-                    Connection conn;
-                    Statement stmt;
-                    ResultSet rs;
-                    String url ="jdbc:sqlserver://"+target_server+";user="+user_name+";password="+user_password+"";
-                    conn = DriverManager.getConnection(url);
-                    stmt = conn.createStatement();
-                    String query= "RESTORE FILELISTONLY FROM DISK='"+ finalPath +backup_name+".bak' ";
-                    rs = stmt.executeQuery(query);
-                    if (stmt.execute(query)) {
-                        rs = stmt.getResultSet();
-                    }
-                    while (rs.next()){
-                        String type=rs.getString("Type"),
-                                name=rs.getString("LogicalName");
+        Thread restore_db = new Thread(() -> {
+            try {
+                String logic_source_base= null ,logic_source_base_log=null;
+                Connection conn;
+                Statement stmt;
+                ResultSet rs;
+                String url ="jdbc:sqlserver://"+target_server+";user="+user_name+";password="+user_password+"";
+                conn = DriverManager.getConnection(url);
+                stmt = conn.createStatement();
+                String query= "RESTORE FILELISTONLY FROM DISK='"+ finalPath +backup_name+".bak' ";
+                rs = stmt.executeQuery(query);
+                if (stmt.execute(query)) {
+                    rs = stmt.getResultSet();
+                }
+                while (rs.next()){
+                    String type=rs.getString("Type"),
+                            name=rs.getString("LogicalName");
 
-                        if (type.matches(".*D.*"))
-                        {
-                            logic_source_base = name;
-                        }
-                        if (type.matches(".*L.*"))
-                        {
-                            logic_source_base_log = name;
-                        }
+                    if (type.matches(".*D.*"))
+                    {
+                        logic_source_base = name;
                     }
-                    String query_res;
-                    if (create_new_db_check_box.isSelected()) {
-                        query_res = "USE [master]\n"+
-                                "RESTORE DATABASE ["+backup_name+"] FROM DISK = N'"+ finalPath +backup_name+".bak' WITH FILE = 1,"+
-                                "MOVE N'"+logic_source_base+"' TO N'"+data_path+backup_name+".mdf', "+
-                                "MOVE N'"+logic_source_base_log+"' TO N'"+log_path+backup_name+"_log.ldf',"+
-                                "NOUNLOAD,  REPLACE,  STATS = 5\n";
-                    }
-                    else {
-                        query_res = "USE [master]\n"+
-                                "ALTER DATABASE ["+target_base+"] SET SINGLE_USER WITH ROLLBACK IMMEDIATE\n"+
-                                "RESTORE DATABASE ["+target_base+"] FROM DISK = N'"+ finalPath +backup_name+".bak' WITH FILE = 1,"+
-                                "MOVE N'"+logic_source_base+"' TO N'"+data_path+target_base+".mdf', "+
-                                "MOVE N'"+logic_source_base_log+"' TO N'"+log_path+target_base+"_log.ldf',"+
-                                "NOUNLOAD,  REPLACE,  STATS = 5\n"+
-                                "ALTER DATABASE ["+target_base+"] SET MULTI_USER";
-
-                    }
-                    conn = DriverManager.getConnection(url);
-                    stmt = conn.createStatement();
-                    stmt.executeQuery(query_res);
-                    if (stmt.execute(query_res)) {
-                        stmt.getResultSet();
+                    if (type.matches(".*L.*"))
+                    {
+                        logic_source_base_log = name;
                     }
                 }
-                catch (SQLException ex){
-                    System.out.println("SQLException: "+ex.getMessage());
-                    System.out.println("SQLState: "+ex.getSQLState());
-                    System.out.println("VendorError: "+ex.getErrorCode());
+                String query_res;
+                if (create_new_db_check_box.isSelected()) {
+                    query_res = "USE [master]\n"+
+                            "RESTORE DATABASE ["+backup_name+"] FROM DISK = N'"+ finalPath +backup_name+".bak' WITH FILE = 1,"+
+                            "MOVE N'"+logic_source_base+"' TO N'"+data_path+backup_name+".mdf', "+
+                            "MOVE N'"+logic_source_base_log+"' TO N'"+log_path+backup_name+"_log.ldf',"+
+                            "NOUNLOAD,  REPLACE,  STATS = 5\n";
                 }
-                res_thread_status[0] = true;
+                else {
+                    query_res = "USE [master]\n"+
+                            "ALTER DATABASE ["+target_base+"] SET SINGLE_USER WITH ROLLBACK IMMEDIATE\n"+
+                            "RESTORE DATABASE ["+target_base+"] FROM DISK = N'"+ finalPath +backup_name+".bak' WITH FILE = 1,"+
+                            "MOVE N'"+logic_source_base+"' TO N'"+data_path+target_base+".mdf', "+
+                            "MOVE N'"+logic_source_base_log+"' TO N'"+log_path+target_base+"_log.ldf',"+
+                            "NOUNLOAD,  REPLACE,  STATS = 5\n"+
+                            "ALTER DATABASE ["+target_base+"] SET MULTI_USER";
+
+                }
+                conn = DriverManager.getConnection(url);
+                stmt = conn.createStatement();
+                stmt.executeQuery(query_res);
+                if (stmt.execute(query_res)) {
+                    stmt.getResultSet();
+                }
             }
+            catch (SQLException ex){
+                System.out.println("SQLException: "+ex.getMessage());
+                System.out.println("SQLState: "+ex.getSQLState());
+                System.out.println("VendorError: "+ex.getErrorCode());
+            }
+            res_thread_status[0] = true;
         });
         ScheduledExecutorService scheduler_res = Executors.newSingleThreadScheduledExecutor();
         scheduler_res.schedule(restore_db, 1, TimeUnit.SECONDS);
         final ScheduledExecutorService scheduled_res_watch = Executors.newSingleThreadScheduledExecutor();
-        scheduled_res_watch.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                if (res_thread_status[0]) {
-                    Thread.currentThread().interrupt();
-                    List<String> list;
-                    list = DockerSQL.get_mssql_db_list(target_server);
-                    final DefaultListModel tdb = new DefaultListModel();
-                    for (String base: list) {
-                        tdb.addElement(base);
-                    }
-                    target_buffer = get_items_for_filter(tdb);
-                    target_list.setModel(tdb);
-                    target_list.setCellRenderer(new ListColorRenderer());
-                    target_list.setSelectedIndex(0);
-                    bar.setValue(100);
-                    DockerSQL.remove_backup(source_server,backup_name);
-                    enable_ui(true);
-                    create_new_db_check_box.setSelected(false);
-                    scheduled_res_watch.shutdown();
+        scheduled_res_watch.scheduleAtFixedRate(() -> {
+            if (res_thread_status[0]) {
+                Thread.currentThread().interrupt();
+                List<String> list;
+                list = DockerSQL.get_mssql_db_list(target_server);
+                final DefaultListModel tdb = new DefaultListModel();
+                for (String base: list) {
+                    tdb.addElement(base);
                 }
-                else  {
-                    String query_salt = "'RESTORE%'";
-                    restore_progress = DockerSQL.get_mssql_progress(query_salt, target_server, backup_name);
-                    bar.setValue(restore_progress);
-                }
+                target_buffer = get_items_for_filter(tdb);
+                target_list.setModel(tdb);
+                target_list.setCellRenderer(new ListColorRenderer());
+                target_list.setSelectedIndex(0);
+                bar.setValue(100);
+                DockerSQL.remove_backup(source_server,backup_name);
+                enable_ui(true);
+                create_new_db_check_box.setSelected(false);
+                scheduled_res_watch.shutdown();
+            }
+            else  {
+                String query_salt = "'RESTORE%'";
+                restore_progress = DockerSQL.get_mssql_progress(query_salt, target_server, backup_name);
+                bar.setValue(restore_progress);
             }
         },0,2, TimeUnit.SECONDS);
     }
@@ -379,7 +438,6 @@ public class Docker {
                         prop.setProperty("password",crypt_password);
                         String conf_path = ".\\conf\\default.properties";
                         prop.store(new FileOutputStream(conf_path,true), "\nremove lines if password changes or wrong");
-                        System.out.println("Your password is: "+password+"\nYour password confirm is: "+confirm);
                         break;
                     }
                 }
@@ -395,53 +453,47 @@ public class Docker {
     }
     private void get_backup(final String selected_server, final String source_base_name, final String backup_name){
         final boolean[] bak_thread_status = {false};
-        Thread backup_db = new Thread(new Runnable()  {
-            @Override
-            public void run() {
+        Thread backup_db = new Thread(() -> {
 
-                get_backup_progress_bar.setMinimum(0);
-                get_backup_progress_bar.setMaximum(100);
-                get_backup_progress_bar.setValue(0);
-                try {
-                    Connection conn;
-                    Statement stmt;
-                    String query="SET NOCOUNT ON "+
-                            "BACKUP DATABASE ["+source_base_name+"] TO  DISK = N'"+backup_name+".bak' WITH RETAINDAYS = 3, NOFORMAT, INIT,  NAME = N'"+
-                            source_base_name+"-Full Database Backup', SKIP, NOREWIND, NOUNLOAD,  STATS = 10";
-                    String url ="jdbc:sqlserver://"+selected_server+";user="+user_name+";password="+user_password+"";
-                    conn = DriverManager.getConnection(url);
-                    stmt = conn.createStatement();
-                    stmt.executeQuery(query);
-                    if (stmt.execute(query)) {
-                        stmt.getResultSet();
-                    }
+            get_backup_progress_bar.setMinimum(0);
+            get_backup_progress_bar.setMaximum(100);
+            get_backup_progress_bar.setValue(0);
+            try {
+                Connection conn;
+                Statement stmt;
+                String query="SET NOCOUNT ON "+
+                        "BACKUP DATABASE ["+source_base_name+"] TO  DISK = N'"+backup_name+".bak' WITH RETAINDAYS = 3, NOFORMAT, INIT,  NAME = N'"+
+                        source_base_name+"-Full Database Backup', SKIP, NOREWIND, NOUNLOAD,  STATS = 10";
+                String url ="jdbc:sqlserver://"+selected_server+";user="+user_name+";password="+user_password+"";
+                conn = DriverManager.getConnection(url);
+                stmt = conn.createStatement();
+                stmt.executeQuery(query);
+                if (stmt.execute(query)) {
+                    stmt.getResultSet();
                 }
-                catch (SQLException ex){
-                    System.out.println("SQLException: "+ex.getMessage());
-                    System.out.println("SQLState: "+ex.getSQLState());
-                    System.out.println("VendorError: "+ex.getErrorCode());
-                }
-                bak_thread_status[0] = true;
             }
+            catch (SQLException ex){
+                System.out.println("SQLException: "+ex.getMessage());
+                System.out.println("SQLState: "+ex.getSQLState());
+                System.out.println("VendorError: "+ex.getErrorCode());
+            }
+            bak_thread_status[0] = true;
         });
         ScheduledExecutorService scheduler_bak = Executors.newSingleThreadScheduledExecutor();
         scheduler_bak.schedule(backup_db, 1, TimeUnit.SECONDS);
         final ScheduledExecutorService scheduled_bak_watch = Executors.newSingleThreadScheduledExecutor();
-        scheduled_bak_watch.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                if (bak_thread_status[0]) {
-                    get_backup_progress_bar.setValue(100);
-                    JOptionPane.showConfirmDialog(main,
-                            "Backup done", "Done", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE);
-                    Thread.currentThread().interrupt();
-                    scheduled_bak_watch.shutdown();
-                }
-                else {
-                    String query_salt ="'BACKUP%'";
-                    int backup_progress = DockerSQL.get_mssql_progress(query_salt, selected_server, backup_name);
-                    get_backup_progress_bar.setValue(backup_progress);
-                }
+        scheduled_bak_watch.scheduleAtFixedRate(() -> {
+            if (bak_thread_status[0]) {
+                get_backup_progress_bar.setValue(100);
+                JOptionPane.showConfirmDialog(main,
+                        "Backup done", "Done", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE);
+                Thread.currentThread().interrupt();
+                scheduled_bak_watch.shutdown();
+            }
+            else {
+                String query_salt ="'BACKUP%'";
+                int backup_progress = DockerSQL.get_mssql_progress(query_salt, selected_server, backup_name);
+                get_backup_progress_bar.setValue(backup_progress);
             }
         },0,2, TimeUnit.SECONDS);
     }
@@ -459,6 +511,10 @@ public class Docker {
         final String server_1c = get_property(default_property,"1c_server",null)[0];
         final String admin_account = get_property(default_property,"admin_account",null)[0];
         final String[] server_1c_ver_with_port =get_property(default_property,"server_1c_ver_with_ras",",");
+        final Path  localRelativePath = Paths.get(get_property(default_property,"local.property",null)[0]);
+        final String local_property = localRelativePath.toAbsolutePath().toString();
+        check_local_conf(local_property);
+        final String path_to_1c = get_property(local_property,"path_to_1c",null)[0];
         final List<List<String>> base_lists = new ArrayList<>();
         final Map<String, Integer> base_dictionary = new HashMap<>();
         Integer id = 0;
@@ -546,157 +602,129 @@ public class Docker {
         frame.pack();
         frame.setVisible(true);
 // listeners
-        server_list.addItemListener(new ItemListener() {
-            @Override
-            public void itemStateChanged(ItemEvent itemEvent) {
-                if (itemEvent.getStateChange() == ItemEvent.SELECTED){
-                    selected_server[0] = (String) itemEvent.getItem();
-                }
-                sdb.clear();
-                source_list.setModel(sdb);
-                List<String> bases_on_server = base_lists.get(base_dictionary.get(selected_server[0]));
-                for (String base: bases_on_server) {
-                    sdb.addElement(base);
-                }
-                source_list.setModel(sdb);
-                source_base_name[0] =(String) source_list.getSelectedValue();
-                source_list.setSelectedIndex(0);
+        server_list.addItemListener(itemEvent -> {
+            if (itemEvent.getStateChange() == ItemEvent.SELECTED){
+                selected_server[0] = (String) itemEvent.getItem();
             }
+            sdb.clear();
+            source_list.setModel(sdb);
+            List<String> bases_on_server1 = base_lists.get(base_dictionary.get(selected_server[0]));
+            for (String base: bases_on_server1) {
+                sdb.addElement(base);
+            }
+            source_list.setModel(sdb);
+            source_base_name[0] =(String) source_list.getSelectedValue();
+            source_list.setSelectedIndex(0);
         });
         String free_space_on_disk = DockerSQL.get_mssql_free_space(dev_server)[0];
         final int sql_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[1]);
         final int bak_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[2]);
         wmi_space.setText("<html>"+free_space_on_disk+"<html>");
         final String[] warn_message = new String[1];
-        backup_restore_db_button.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                final Date d = new Date();
-                SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-YY_HH-mm-ss-S");
-                final String date = dateFormat.format(d);
-                source_base_name[0] = (String) source_list.getSelectedValue();
-                int extra = Integer.parseInt(DockerSQL.get_mssql_db_size((String)source_list.getSelectedValue(),(String)server_list.getSelectedItem()));
-                int approve = 1;
-                String alias = add_new_infobase_alias_name.getText();
-                String comment = add_new_infobase_comment.getText();
-                if (sql_disk<extra){
-                    warn_message[0] = "<html><font color=#f54242> НЕДОСТАТОЧНО МЕСТА НА ДИСКЕ БД</font>";
-                     JOptionPane.showConfirmDialog(null,
-                             warn_message[0], "WARNING", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE);
-                }
-                else if (bak_disk<extra){
-                    warn_message[0] = "<html><font color=#f54242> НЕДОСТАТОЧНО МЕСТА НА ДИСКЕ БЭКАПОВ</font>";
-                    JOptionPane.showConfirmDialog(null,
-                            warn_message[0], "WARNING", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE);
-                }
-                else if (create_new_db_check_box.isSelected() &&
-                        ((alias.equals("Имя базы 1с")|| alias.equals(""))
-                                &&(comment.equals("Комментарий"))||comment.equals(""))){
-                    warn_message[0] = "<html><font color=#f52248>При создании новой базы <br/>необходимо указать имя базы и коментарий</font>";
-                    JOptionPane.showConfirmDialog(null,
-                            warn_message[0], "WARNING", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE);
+        backup_restore_db_button.addActionListener(actionEvent -> {
+            final Date d = new Date();
+            SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-YY_HH-mm-ss-S");
+            final String date = dateFormat.format(d);
+            source_base_name[0] = (String) source_list.getSelectedValue();
+            int extra = Integer.parseInt(DockerSQL.get_mssql_db_size((String)source_list.getSelectedValue(),(String)server_list.getSelectedItem()));
+            int approve = 1;
+            String alias = add_new_infobase_alias_name.getText();
+            String comment = add_new_infobase_comment.getText();
+            if (sql_disk<extra){
+                warn_message[0] = "<html><font color=#f54242> НЕДОСТАТОЧНО МЕСТА НА ДИСКЕ БД</font>";
+                 JOptionPane.showConfirmDialog(null,
+                         warn_message[0], "WARNING", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE);
+            }
+            else if (bak_disk<extra){
+                warn_message[0] = "<html><font color=#f54242> НЕДОСТАТОЧНО МЕСТА НА ДИСКЕ БЭКАПОВ</font>";
+                JOptionPane.showConfirmDialog(null,
+                        warn_message[0], "WARNING", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE);
+            }
+            else if (create_new_db_check_box.isSelected() &&
+                    ((alias.equals("Имя базы 1с")|| alias.equals(""))
+                            &&(comment.equals("Комментарий"))||comment.equals(""))){
+                warn_message[0] = "<html><font color=#f52248>При создании новой базы <br/>необходимо указать имя базы и коментарий</font>";
+                JOptionPane.showConfirmDialog(null,
+                        warn_message[0], "WARNING", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE);
+            }
+            else {
+                String title, additional_string;
+                if (create_new_db_check_box.isSelected()){
+                    title = "Создание новой базы";
+                    additional_string = "";
                 }
                 else {
-                    String title, additional_string;
-                    if (create_new_db_check_box.isSelected()){
-                        title = "Создание новой базы";
-                        additional_string = "";
-                    }
-                    else {
-                        title = "Обновление базы";
-                        additional_string = "\nВ: "+ target_base_name[0];
+                    title = "Обновление базы";
+                    additional_string = "\nВ: "+ target_base_name[0];
 
-                    }
-                    if (source_base_name[0]== null){
-                        source_base_name[0] = (String) source_list.getSelectedValue();
-                    }
-                    approve = JOptionPane.showConfirmDialog(null,
-                                title
-                                +"\nСервер: \t"+selected_server[0]
-                                +"\nИЗ: "+source_base_name[0]
-                                +additional_string
-                                +"\nДополнительное место: "+extra+" MB"
-                                +"\nСвободно места на диске бд: "+sql_disk+" MB"
-                                +"\nСвободно места на диске бэкапов: "+bak_disk+" MB"
-                                +"\n",
-                            title+" Подтверждение"
-                        , JOptionPane.YES_NO_OPTION);
                 }
-                if(approve == 0){
-                    final String backup_name = System.getProperty("user.name")+"_"+source_base_name[0]+"_"+date;
-                    try {
-                        wright_log(date,selected_server[0],source_base_name[0],target_base_name[0],backup_name);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    backup_db(selected_server[0], source_base_name[0], backup_name, target_base_name[0]
-                            ,dev_server, backup_dir, server_1c);
+                if (source_base_name[0]== null){
+                    source_base_name[0] = (String) source_list.getSelectedValue();
+                }
+                approve = JOptionPane.showConfirmDialog(null,
+                            title
+                            +"\nСервер: \t"+selected_server[0]
+                            +"\nИЗ: "+source_base_name[0]
+                            +additional_string
+                            +"\nДополнительное место: "+extra+" MB"
+                            +"\nСвободно места на диске бд: "+sql_disk+" MB"
+                            +"\nСвободно места на диске бэкапов: "+bak_disk+" MB"
+                            +"\n",
+                        title+" Подтверждение"
+                    , JOptionPane.YES_NO_OPTION);
+            }
+            if(approve == 0){
+                final String backup_name = System.getProperty("user.name")+"_"+source_base_name[0]+"_"+date;
+                try {
+                    wright_log(date,selected_server[0],source_base_name[0],target_base_name[0],backup_name);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                backup_db(selected_server[0], source_base_name[0], backup_name, target_base_name[0]
+                        ,dev_server, backup_dir, server_1c, path_to_1c);
+            }
+        });
+        removeDbButton.addActionListener(actionEvent -> {
+            int approve;
+            approve = JOptionPane.showConfirmDialog(main,"Удаляем базу "+target_base_name[0]+" ?","Удаление базы", JOptionPane.YES_NO_OPTION);
+            if(approve == 0){
+                try {
+                    Docker1C.remove_1c_base(dev_server,target_base_name[0],path_to_1c,(String) server_1c_ver.getSelectedItem());
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
             }
         });
-        removeDbButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                int approve = 1;
-                approve = JOptionPane.showConfirmDialog(main,"Удаляем базу "+target_base_name[0]+" ?","Удаление базы", JOptionPane.YES_NO_OPTION);
-                if(approve == 0){
-                    try {
-                        Docker1C.remove_1c_base(dev_server,target_base_name[0],(String) server_1c_ver.getSelectedItem());
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
+        quit.addActionListener(actionEvent -> System.exit(0));
+        source_list.addListSelectionListener(e -> {
+            source_base_name[0] = (String) source_list.getSelectedValue();
+            String source_db_size1 = DockerSQL.get_mssql_db_size(source_base_name[0], selected_server[0]);
+            String source_creation_date1 = DockerSQL.get_mssql_db_creation_date(source_base_name[0], selected_server[0]);
+            source_base_size.setText(source_db_size1 +" MB");
+            source_base_creation_date.setText(source_creation_date1);
+        });
+        target_list.addListSelectionListener(e -> {
+            target_base_name[0] = (String) target_list.getSelectedValue();
+            String target_db_size1 = DockerSQL.get_mssql_db_size(target_base_name[0], dev_server);
+            String target_creation_date1 = DockerSQL.get_mssql_db_creation_date(target_base_name[0], dev_server);
+            target_base_size.setText(target_db_size1 +" MB");
+            target_base_creation_date.setText(target_creation_date1);
+            boolean test_admin1 = System.getProperty("user.name").equals(admin_account);
+            boolean test_owner1 = false;
+            if  (target_base_name[0]!=null){
+                test_owner1 = target_base_name[0].contains(System.getProperty("user.name"));
+            }
+            if (!test_admin1 & !test_owner1){
+                removeDbButton.setEnabled(false);
             }
         });
-        quit.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                System.exit(0);
+        create_new_db_check_box.addItemListener(e -> enable_ui_target(create_new_db_check_box.isSelected()));
+        my_bases_only_check_box.addItemListener(e -> {
+            if(e.getStateChange() == ItemEvent.SELECTED){
+                target_search.setText(System.getProperty("user.name"));
             }
-        });
-        source_list.addListSelectionListener(new ListSelectionListener() {
-            @Override
-            public void valueChanged(ListSelectionEvent e) {
-                source_base_name[0] = (String) source_list.getSelectedValue();
-                String source_db_size= DockerSQL.get_mssql_db_size(source_base_name[0], selected_server[0]);
-                String source_creation_date= DockerSQL.get_mssql_db_creation_date(source_base_name[0], selected_server[0]);
-                source_base_size.setText(source_db_size+" MB");
-                source_base_creation_date.setText(source_creation_date);
-            }
-        });
-        target_list.addListSelectionListener(new ListSelectionListener() {
-            @Override
-            public void valueChanged(ListSelectionEvent e) {
-                target_base_name[0] = (String) target_list.getSelectedValue();
-                String target_db_size= DockerSQL.get_mssql_db_size(target_base_name[0], dev_server);
-                String target_creation_date= DockerSQL.get_mssql_db_creation_date(target_base_name[0], dev_server);
-                target_base_size.setText(target_db_size+" MB");
-                target_base_creation_date.setText(target_creation_date);
-                boolean test_admin = System.getProperty("user.name").equals(admin_account);
-                boolean test_owner = false;
-                if  (target_base_name[0]!=null){
-                    test_owner = target_base_name[0].contains(System.getProperty("user.name"));
-                }
-                if (!test_admin & !test_owner){
-                    removeDbButton.setEnabled(false);
-                }
-            }
-        });
-        create_new_db_check_box.addItemListener(new ItemListener() {
-            @Override
-            public void itemStateChanged(ItemEvent e) {
-                    enable_ui_target(create_new_db_check_box.isSelected());
-            }
-        });
-        my_bases_only_check_box.addItemListener(new ItemListener() {
-            @Override
-            public void itemStateChanged(ItemEvent e) {
-                if(e.getStateChange() == ItemEvent.SELECTED){
-                    target_search.setText(System.getProperty("user.name"));
-                }
-                else {
-                    target_search.setText("");
-                }
+            else {
+                target_search.setText("");
             }
         });
         source_search.getDocument().addDocumentListener(new DocumentListener(){
@@ -733,67 +761,55 @@ public class Docker {
                 target_list.setCellRenderer(new ListColorRenderer());
             }
         });
-        dev_base_renew.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-            List<String> list = DockerSQL.get_mssql_db_list(dev_server);
-            tdb.clear();
-            for (String base : list){
-                tdb.addElement(base);
+        dev_base_renew.addActionListener(actionEvent -> {
+        List<String> list = DockerSQL.get_mssql_db_list(dev_server);
+        tdb.clear();
+        for (String base : list){
+            tdb.addElement(base);
+        }
+        target_list.setModel(tdb);
+        target_list.setSelectedIndex(0);
+        target_list.setCellRenderer(new ListColorRenderer());
+        });
+        dev_prod_switch.addItemListener(itemEvent -> {
+            if (itemEvent.getStateChange() == ItemEvent.SELECTED){
+                itemEvent.getItem();
             }
-            target_list.setModel(tdb);
-            target_list.setSelectedIndex(0);
-            target_list.setCellRenderer(new ListColorRenderer());
+            String res;
+            res =(String) dev_prod_switch.getSelectedItem();
+            assert res != null;
+            enable_ui_prod_dev(res);
+        });
+        openLogsButton.addActionListener(actionEvent -> {
+            try {
+                Runtime.getRuntime().exec("notepad "+ get_property(default_property,"log_file",null)[0]);
+            }
+            catch (IOException ex){
+                ex.printStackTrace();
             }
         });
-        dev_prod_switch.addItemListener(new ItemListener() {
-            @Override
-            public void itemStateChanged(ItemEvent itemEvent) {
-                if (itemEvent.getStateChange() == ItemEvent.SELECTED){
-                    itemEvent.getItem();
-                }
-                String res;
-                res =(String) dev_prod_switch.getSelectedItem();
-                assert res != null;
-                enable_ui_prod_dev(res);
+        params_help.addActionListener(actionEvent -> {
+            Properties props = new Properties();
+            FileInputStream input = null;
+            try {
+                input = new FileInputStream(new File("conf/info.properties"));
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
             }
-        });
-        openLogsButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                try {
-                    Runtime.getRuntime().exec("notepad "+ get_property(default_property,"log_file",null)[0]);
-                }
-                catch (IOException ex){
-                    ex.printStackTrace();
-                }
+            try {
+                assert input != null;
+                props.load(new InputStreamReader(input, StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-        });
-        params_help.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                Properties props = new Properties();
-                FileInputStream input = null;
-                try {
-                    input = new FileInputStream(new File("conf/info.properties"));
-                } catch (FileNotFoundException e) {
-                    e.printStackTrace();
-                }
-                try {
-                    assert input != null;
-                    props.load(new InputStreamReader(input, StandardCharsets.UTF_8));
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                String text = props.getProperty("info");
-                JEditorPane textArea = new JEditorPane("text/html", text);
-                JScrollPane scrollPane = new JScrollPane(textArea);
-                scrollPane.setPreferredSize( new Dimension( 500, 500 ) );
-                JOptionPane.showMessageDialog(null,scrollPane
-                        ,
-                        "Информация по парамерам запуска"
-                        , JOptionPane.INFORMATION_MESSAGE, help_icon);
-            }
+            String text = props.getProperty("info");
+            JEditorPane textArea = new JEditorPane("text/html", text);
+            JScrollPane scrollPane = new JScrollPane(textArea);
+            scrollPane.setPreferredSize( new Dimension( 500, 500 ) );
+            JOptionPane.showMessageDialog(null,scrollPane
+                    ,
+                    "Информация по парамерам запуска"
+                    , JOptionPane.INFORMATION_MESSAGE, help_icon);
         });
         add_new_infobase_alias_name.addFocusListener(new FocusAdapter() {
             @Override
@@ -816,229 +832,167 @@ public class Docker {
                 run_1c_custom_params.selectAll();
             }
         });
-        run1cButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                String infobase =(String) target_list.getSelectedValue();
-                String version = (String) server_1c_ver.getSelectedItem();
-                String p =  server_1c_ver_with_port[0].split(":")[1];
-                String port = p.substring(0, p.length() -1)+"1";
-                String bin = path_to_1c + version + path_1c_exe;
-                final String command = bin +" ENTERPRISE /S\""+dev_server+":"+port+"\\"+infobase + "\"";
-                Thread run1c = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            Docker1C.run_shell_command(command);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                });
-                ScheduledExecutorService scheduler_res = Executors.newSingleThreadScheduledExecutor();
-                scheduler_res.schedule(run1c, 1, TimeUnit.SECONDS);
-            }
-        });
-        run1cDesignerButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                String infobase =(String) target_list.getSelectedValue();
-                String version = (String) server_1c_ver.getSelectedItem();
-                String p =  server_1c_ver_with_port[0].split(":")[1];
-                String port = p.substring(0, p.length() -1)+"1";
-                String bin = path_to_1c + version + path_1c_exe;
-                final String command = bin +" DESIGNER /S\""+dev_server+":"+port+"\\"+infobase + "\"";
-                Thread run1c = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            Docker1C.run_shell_command(command);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                });
-                ScheduledExecutorService scheduler_res = Executors.newSingleThreadScheduledExecutor();
-                scheduler_res.schedule(run1c, 1, TimeUnit.SECONDS);
-            }
-        });
-        run1cAdminConsoleButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                final String command = get_property(default_property,"1c_console_command",null)[0];
-                Thread run1c = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            Docker1C.run_shell_command(command);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                });
-                ScheduledExecutorService scheduler_res = Executors.newSingleThreadScheduledExecutor();
-                scheduler_res.schedule(run1c, 1, TimeUnit.SECONDS);
-            }
-        });
-        run1cWithParamsButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                String infobase =(String) target_list.getSelectedValue();
-                String version = (String) server_1c_ver.getSelectedItem();
-                String p =  server_1c_ver_with_port[0].split(":")[1];
-                String port = p.substring(0, p.length() -1)+"1";
-                String bin = path_to_1c + version + path_1c_exe;
-                String params = run_1c_custom_params.getText();
-                final String command = bin +" ENTERPRISE /S\""+dev_server+":"+port+"\\"+infobase + "\" " + params;
-                Thread run1c = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            Docker1C.run_shell_command(command);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                });
-                ScheduledExecutorService scheduler_res = Executors.newSingleThreadScheduledExecutor();
-                scheduler_res.schedule(run1c, 1, TimeUnit.SECONDS);
-
-            }
-        });
-        getDtButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                String infobase =(String) target_list.getSelectedValue();
-                String version = (String) server_1c_ver.getSelectedItem();
-                JFileChooser f = new JFileChooser();
-                f.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-                f.setDialogTitle("Choose directory for DT from base " +infobase);
-                f.setFileView(new FileView() {
-                    @Override
-                    public String getName(File f) {
-                        String name = FileSystemView.getFileSystemView().getSystemDisplayName(f);
-                        if(name.equals("")) {
-                            name = FileSystemView.getFileSystemView().getSystemTypeDescription(f);
-                        }
-                        return name;
-                    }
-                });
-                f.showSaveDialog(null);
-                Path  localRelativePath = Paths.get(String.valueOf(f.getSelectedFile()));
-                String path = localRelativePath.toAbsolutePath().toString();
-                Docker1C.run_designer_command(version,dev_server,infobase,path, "bak dt");
-            }
-        });
-        getCfButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                String infobase =(String) target_list.getSelectedValue();
-                String version = (String) server_1c_ver.getSelectedItem();
-                JFileChooser f = new JFileChooser();
-                f.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-                f.setDialogTitle("Choose directory for CF from base " +infobase);
-                f.setFileView(new FileView() {
-                    @Override
-                    public String getName(File f) {
-                        String name = FileSystemView.getFileSystemView().getSystemDisplayName(f);
-                        if(name.equals("")) {
-                            name = FileSystemView.getFileSystemView().getSystemTypeDescription(f);
-                        }
-                        return name;
-                    }
-                });
-                f.showSaveDialog(null);
-                Path  localRelativePath = Paths.get(String.valueOf(f.getSelectedFile()));
-                String path = localRelativePath.toAbsolutePath().toString();
-                Docker1C.run_designer_command(version,dev_server,infobase,path, "bak cf");
-            }
-        });
-        getSqlBakButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                String base =(String) target_list.getSelectedValue();
-                String folder = "\\\\"+dev_server+"\\"+backup_dir;
-                get_backup(dev_server,base, base);
+        run1cButton.addActionListener(actionEvent -> {
+            String infobase =(String) target_list.getSelectedValue();
+            String version = (String) server_1c_ver.getSelectedItem();
+            String p =  server_1c_ver_with_port[0].split(":")[1];
+            String port = p.substring(0, p.length() -1)+"1";
+            String bin = path_to_1c + version + path_1c_exe;
+            final String command ="\""+ bin +"\" ENTERPRISE /S\""+dev_server+":"+port+"\\"+infobase + "\"";
+            Thread run1c = new Thread(() -> {
                 try {
-                    Desktop.getDesktop().open(new File(folder));
+                    Docker1C.run_shell_command(command);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-
-            }
+            });
+            ScheduledExecutorService scheduler_res = Executors.newSingleThreadScheduledExecutor();
+            scheduler_res.schedule(run1c, 1, TimeUnit.SECONDS);
         });
-        useMyBackupButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                String infobase =(String) target_list.getSelectedValue();
-                String version = (String) server_1c_ver.getSelectedItem();
-                JFileChooser f = new JFileChooser();
-                f.setFileSelectionMode(JFileChooser.FILES_ONLY);
-                FileNameExtensionFilter filter1c = new FileNameExtensionFilter("1c backups", "dt","cf","bak");
-                f.setAcceptAllFileFilterUsed(false);
-                f.setFileFilter(filter1c);
-                f.setDialogTitle("Choose your backup" );
-                f.setFileView(new FileView() {
-                    @Override
-                    public String getName(File f) {
-                        String name = FileSystemView.getFileSystemView().getSystemDisplayName(f);
-                        if(name.equals("")) {
-                            name = FileSystemView.getFileSystemView().getSystemTypeDescription(f);
-                        }
-                        return name;
+        run1cDesignerButton.addActionListener(actionEvent -> {
+            String infobase =(String) target_list.getSelectedValue();
+            String version = (String) server_1c_ver.getSelectedItem();
+            String p =  server_1c_ver_with_port[0].split(":")[1];
+            String port = p.substring(0, p.length() -1)+"1";
+            String bin = path_to_1c + version + path_1c_exe;
+            final String command ="\""+ bin +"\" DESIGNER /S\""+dev_server+":"+port+"\\"+infobase + "\"";
+            Thread run1c = new Thread(() -> {
+                try {
+                    Docker1C.run_shell_command(command);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
+            ScheduledExecutorService scheduler_res = Executors.newSingleThreadScheduledExecutor();
+            scheduler_res.schedule(run1c, 1, TimeUnit.SECONDS);
+        });
+        run1cAdminConsoleButton.addActionListener(actionEvent -> {
+            final String command = get_property(default_property,"1c_console_command",null)[0];
+            Thread run1c = new Thread(() -> {
+                try {
+                    Docker1C.run_shell_command(command);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
+            ScheduledExecutorService scheduler_res = Executors.newSingleThreadScheduledExecutor();
+            scheduler_res.schedule(run1c, 1, TimeUnit.SECONDS);
+        });
+        run1cWithParamsButton.addActionListener(actionEvent -> {
+            String infobase =(String) target_list.getSelectedValue();
+            String version = (String) server_1c_ver.getSelectedItem();
+            String p =  server_1c_ver_with_port[0].split(":")[1];
+            String port = p.substring(0, p.length() -1)+"1";
+            String bin = path_to_1c + version + path_1c_exe;
+            String params = run_1c_custom_params.getText();
+            final String command ="\""+ bin +"\" ENTERPRISE /S\""+dev_server+":"+port+"\\"+infobase + "\" "
+                    + params;
+            Thread run1c = new Thread(() -> {
+                try {
+                    Docker1C.run_shell_command(command);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
+            ScheduledExecutorService scheduler_res = Executors.newSingleThreadScheduledExecutor();
+            scheduler_res.schedule(run1c, 1, TimeUnit.SECONDS);
+
+        });
+        getDtButton.addActionListener(actionEvent -> {
+            String infobase =(String) target_list.getSelectedValue();
+            String version = (String) server_1c_ver.getSelectedItem();
+            JFileChooser f = new JFileChooser();
+            f.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            f.setDialogTitle("Choose directory for DT from base " +infobase);
+            f.setFileView(new FileView() {
+                @Override
+                public String getName(File f) {
+                    String name = FileSystemView.getFileSystemView().getSystemDisplayName(f);
+                    if(name.equals("")) {
+                        name = FileSystemView.getFileSystemView().getSystemTypeDescription(f);
                     }
-                });
-                f.showOpenDialog(null);
-                Path  localRelativePath = Paths.get(String.valueOf(f.getSelectedFile()));
-                String path = localRelativePath.toAbsolutePath().toString();
-                if(path.endsWith(".dt")){
-                    Docker1C.run_designer_command(version,dev_server,infobase,path, "load dt");
+                    return name;
                 }
-                else if (path.endsWith(".cf")){
-                    Docker1C.run_designer_command(version,dev_server,infobase,path, "load cf");
-                }
-                else if (path.endsWith(".bak")){
-                    Path in = Paths.get(path);
-                    String filename = in.getFileName().toString().split("\\.")[0];
-                    Path out = Paths.get("\\\\"+dev_server+"\\"+backup_dir+"\\"+filename+".bak");
-                    try {
-                        Files.copy(Paths.get(path),out);
-                    } catch (IOException e) {
-                        e.printStackTrace();
+            });
+            f.showSaveDialog(null);
+            Path localRelativePath13 = Paths.get(String.valueOf(f.getSelectedFile()));
+            String path = localRelativePath13.toAbsolutePath().toString();
+            Docker1C.run_designer_command(version,dev_server,infobase,path,path_to_1c, "bak dt");
+        });
+        getCfButton.addActionListener(actionEvent -> {
+            String infobase =(String) target_list.getSelectedValue();
+            String version = (String) server_1c_ver.getSelectedItem();
+            JFileChooser f = new JFileChooser();
+            f.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            f.setDialogTitle("Choose directory for CF from base " +infobase);
+            f.setFileView(new FileView() {
+                @Override
+                public String getName(File f) {
+                    String name = FileSystemView.getFileSystemView().getSystemDisplayName(f);
+                    if(name.equals("")) {
+                        name = FileSystemView.getFileSystemView().getSystemTypeDescription(f);
                     }
-                    restore_db(dev_server,dev_server,infobase,filename,"",restore_my_bak_progress_bar);
+                    return name;
                 }
+            });
+            f.showSaveDialog(null);
+            Path localRelativePath12 = Paths.get(String.valueOf(f.getSelectedFile()));
+            String path = localRelativePath12.toAbsolutePath().toString();
+            Docker1C.run_designer_command(version,dev_server,infobase,path,path_to_1c, "bak cf");
+        });
+        getSqlBakButton.addActionListener(actionEvent -> {
+            String base =(String) target_list.getSelectedValue();
+            String folder = "\\\\"+dev_server+"\\"+backup_dir;
+            get_backup(dev_server,base, base);
+            try {
+                Desktop.getDesktop().open(new File(folder));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+        });
+        useMyBackupButton.addActionListener(actionEvent -> {
+            String infobase =(String) target_list.getSelectedValue();
+            String version = (String) server_1c_ver.getSelectedItem();
+            JFileChooser f = new JFileChooser();
+            f.setFileSelectionMode(JFileChooser.FILES_ONLY);
+            FileNameExtensionFilter filter1c = new FileNameExtensionFilter("1c backups", "dt","cf","bak");
+            f.setAcceptAllFileFilterUsed(false);
+            f.setFileFilter(filter1c);
+            f.setDialogTitle("Choose your backup" );
+            f.setFileView(new FileView() {
+                @Override
+                public String getName(File f) {
+                    String name = FileSystemView.getFileSystemView().getSystemDisplayName(f);
+                    if(name.equals("")) {
+                        name = FileSystemView.getFileSystemView().getSystemTypeDescription(f);
+                    }
+                    return name;
+                }
+            });
+            f.showOpenDialog(null);
+            Path localRelativePath1 = Paths.get(String.valueOf(f.getSelectedFile()));
+            String path = localRelativePath1.toAbsolutePath().toString();
+            if(path.endsWith(".dt")){
+                Docker1C.run_designer_command(version,dev_server,infobase,path,path_to_1c, "load dt");
+            }
+            else if (path.endsWith(".cf")){
+                Docker1C.run_designer_command(version,dev_server,infobase,path,path_to_1c, "load cf");
+            }
+            else if (path.endsWith(".bak")){
+                Path in = Paths.get(path);
+                String filename = in.getFileName().toString().split("\\.")[0];
+                Path out = Paths.get("\\\\"+dev_server+"\\"+backup_dir+"\\"+filename+".bak");
+                try {
+                    Files.copy(Paths.get(path),out);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                restore_db(dev_server,dev_server,infobase,filename,"",restore_my_bak_progress_bar);
             }
         });
     }
-
     public static void main(String[] args) throws IOException {
         new Docker();
-    }
-}
-class ListColorRenderer extends DefaultListCellRenderer {
-    public Component getListCellRendererComponent( JList list, Object value, int index, boolean isSelected, boolean cellHasFocus ) {
-        Component c = super.getListCellRendererComponent( list, value, index, isSelected, cellHasFocus );
-        String db_name = value.toString();
-        final String dev_server =  Docker.get_property(Docker.default_property,"dev_server",null)[0];
-        String db_cd = DockerSQL.get_mssql_db_creation_date(db_name, dev_server);
-        String[] db_creation_date = db_cd.split("\\.");
-        int db_creation_year = Integer.parseInt(db_creation_date[0]);
-        int db_creation_month = Integer.parseInt(db_creation_date[1]);
-        Date d = new Date();
-        SimpleDateFormat dateFormat = new SimpleDateFormat("YYYY.MM.dd");
-        String[] date = dateFormat.format(d).split("\\.");
-        int year =Integer.parseInt(date[0]);
-        int month = Integer.parseInt(date[1]);
-        if ((year - db_creation_year )*12 +db_creation_month - month <=3){
-            c.setBackground(Color.GREEN);
-        }
-        else{
-            c.setBackground( Color.RED );
-        }
-        if(isSelected){
-            c.setBackground( Color.LIGHT_GRAY);
-        }
-        return c;
     }
 }

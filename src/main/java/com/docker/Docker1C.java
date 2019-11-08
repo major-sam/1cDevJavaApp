@@ -3,7 +3,6 @@ package com.docker;
 import javax.swing.*;
 import java.io.*;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
@@ -13,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 
 class Docker1C {
     static ArrayList<String> run_shell_command(String command) throws IOException {
-        ProcessBuilder builder = new ProcessBuilder("cmd", "/c",command);
+        ProcessBuilder builder = new ProcessBuilder("cmd", "/c","\""+command+"\"");
         builder.redirectErrorStream(true);
         Process process = builder.start();
         InputStream is = process.getInputStream();
@@ -26,8 +25,8 @@ class Docker1C {
         return lines;
     }
     static void create_1c_base(String server_1c, String server_sql, String ver,
-                               String infobase_name, String description) throws IOException {
-        String b = Docker.path_to_1c + ver + Docker.path_rac_exe;
+                               String infobase_name, String path_to_1c, String description) throws IOException {
+        String b = path_to_1c + ver + Docker.path_rac_exe;
         String rac_bin = Paths.get(b).toString();
         String rac_port= "";
         String[] server_1c_ver_with_ras = Docker.get_property(Docker.default_property, "server_1c_ver_with_ras", ",");
@@ -42,12 +41,12 @@ class Docker1C {
         String create_db =  " infobase create --cluster="+cluster_id+" --create-database --name="+infobase_name+
               "  --dbms=MSSQLServer  --locale=ru_RU --db-server="+server_sql+"  --db-name="+infobase_name +
                 "  --descr=\""+description +"\" " +rac_service ;
-        String command = rac_bin + create_db;
+        String command ="\""+ rac_bin +"\""+ create_db;
         run_shell_command(command);
     }
     private static String get_cluster_id(String rac_bin, String rac_service) throws IOException {
         String cluster_id = null;
-        String command= rac_bin+ " " +rac_service +  " cluster list" ;
+        String command= "\""+ rac_bin +"\""+ " " +rac_service +  " cluster list" ;
         ArrayList<String> clusters = run_shell_command(command);
         for (String line : clusters) {
             if (line.startsWith("cluster")) {
@@ -59,7 +58,7 @@ class Docker1C {
     }
     private static String get_infobase_id(String base_name, String rac_service, String rac_bin, String cluster_id)
             throws IOException {
-        String command =rac_bin+ " infobase --cluster="+cluster_id+" summary list "+rac_service;
+        String command ="\""+ rac_bin +"\""+ " infobase --cluster="+cluster_id+" summary list "+rac_service;
         ArrayList<String> info_bases = run_shell_command(command);
         String info_base_id = null;
         for (String line : info_bases) {
@@ -95,8 +94,8 @@ class Docker1C {
         String command=rac_bin+" infobase update --cluster=" + cluster_id + " --infobase="+infobase_id + " --descr=\"" +description+ "\"";
         run_shell_command(command);
     }
-    static void remove_1c_base(String server_1c, String base_name,  String ver) throws IOException {
-        String b = Docker.path_to_1c + ver + Docker.path_rac_exe;
+    static void remove_1c_base(String server_1c, String base_name, String path_to_1c,  String ver) throws IOException {
+        String b = path_to_1c + ver + Docker.path_rac_exe;
         String rac_bin = Paths.get(b).toString();
         String rac_port= "";
         String[] server_1c_ver_with_ras = Docker.get_property(Docker.default_property, "server_1c_ver_with_ras", ",");
@@ -110,7 +109,7 @@ class Docker1C {
         String rac_service = server_1c + ":" + rac_port;
         String cluster_id = get_cluster_id(rac_bin,rac_service);
         String infobase_id = get_infobase_id(base_name,rac_service,rac_bin,cluster_id);
-        String command = rac_bin + " "+ rac_service+" infobase --cluster="+cluster_id+ " drop --infobase="+infobase_id;
+        String command = "\""+ rac_bin +"\"" + " "+ rac_service+" infobase --cluster="+cluster_id+ " drop --infobase="+infobase_id;
         run_shell_command(command);
         DockerSQL.remove_db(server_1c,base_name);
         String[] share_for_1c_lists= Docker.get_property(Docker.default_property, "share_for_1c_lists", null);
@@ -120,7 +119,7 @@ class Docker1C {
     }
     static void add_infobase_to_list(String server_1c, String ver, String infobase, String infobase_name)
             throws IOException {
-        String rac_port = "", server_1c_port = "";
+        String rac_port , server_1c_port = "";
         String[] server_1c_ver_with_ras = Docker.get_property(Docker.default_property, "server_1c_ver_with_ras", ",");
         String[] share = Docker.get_property(Docker.default_property, "share_for_1c_lists", null);
         String share_for_1c_lists = Paths.get(share[0]).toString();
@@ -138,7 +137,7 @@ class Docker1C {
                 "Connect=Srvr=\"" + srvr + "\";Ref=\"" + infobase + "\"\r\n" +
                 "Folder=/" + System.getProperty("user.name") + "/\r\n\r\n";
         String path = share_for_1c_lists + System.getProperty("user.name") + ".v8i";
-        File file = new File(path);
+        new File(path);
         byte[] strToBytes = infobase_settings.getBytes();
         Files.write(Paths.get(path), strToBytes, StandardOpenOption.APPEND);
     }
@@ -165,16 +164,16 @@ class Docker1C {
             }
             index_out++;
         }
-        File file_out = new File(file);
+        new File(file);
         String l = line_out.toString();
         byte[] strToBytes = l.getBytes();
         Files.write(Paths.get(file), strToBytes);
     }
-    static void run_designer_command(String version, String server, String infobase, String path, String format){
+    static void run_designer_command(String version, String server, String infobase, String path, String path_to_1c, String format){
         String[] server_1c_ver_with_port=Docker.get_property(Docker.default_property, "server_1c_ver_with_ras", ",");
         String p =  server_1c_ver_with_port[0].split(":")[1];
         String port = p.substring(0, p.length() -1)+"1";
-        String bin = Docker.path_to_1c + version +  Docker.path_1c_exe;
+        String rac_bin = path_to_1c + version +  Docker.path_1c_exe;
         String param = "";
         String f = "";
         if (format.equals("bak cf")){
@@ -194,31 +193,25 @@ class Docker1C {
             param = "/RestoreIB";
         }
         final boolean[] status= {false};
-        final String command = bin +" DESIGNER /S\""+server+":"+port+"\\"+infobase + "\" " +param+" "
+        final String command = "\""+ rac_bin +"\"" +" DESIGNER /S\""+server+":"+port+"\\"+infobase + "\" " +param+" "
                 + path+"\\"+infobase+ f;
-        Thread run1c = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Docker1C.run_shell_command(command);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                status[0] = true;
+        Thread run1c = new Thread(() -> {
+            try {
+                Docker1C.run_shell_command(command);
+            } catch (IOException e) {
+                e.printStackTrace();
             }
+            status[0] = true;
         });
         ScheduledExecutorService scheduler_res = Executors.newSingleThreadScheduledExecutor();
         scheduler_res.schedule(run1c, 1, TimeUnit.SECONDS);
         final ScheduledExecutorService watcher = Executors.newSingleThreadScheduledExecutor();
-        watcher.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                if (status[0]) {
-                    JOptionPane.showConfirmDialog(null,
-                            "CF DONE", "Done", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE);
-                    Thread.currentThread().interrupt();
-                    watcher.shutdown();
-                }
+        watcher.scheduleAtFixedRate(() -> {
+            if (status[0]) {
+                JOptionPane.showConfirmDialog(null,
+                        "CF DONE", "Done", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE);
+                Thread.currentThread().interrupt();
+                watcher.shutdown();
             }
         },0,2, TimeUnit.SECONDS);
     }
