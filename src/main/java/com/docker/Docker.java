@@ -1,5 +1,6 @@
 package com.docker;
 
+import jdk.nashorn.internal.scripts.JO;
 import org.jasypt.util.text.StrongTextEncryptor;
 
 import javax.swing.*;
@@ -9,10 +10,7 @@ import java.awt.event.*;
 import java.io.*;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
 import java.sql.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -497,6 +495,26 @@ public class Docker {
             }
         },0,2, TimeUnit.SECONDS);
     }
+    private void copy(Path source, Path dest) {
+        try {
+            if (!Files.exists(dest)){
+                Files.copy(source, dest);}
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage(), e);
+        }
+    }
+    private void check_rac(String path,String ver) throws IOException {
+        String rac_exe = path+ver+path_rac_exe;
+        File rac = new File(rac_exe);
+        if (!rac.exists()){
+            String src = get_property(default_property,"rac_share",null)[0]+ ver + "\\";
+            //todo check with additional ver
+            Path target = Paths.get(path + ver + "\\bin\\");
+            Files.walk(Paths.get(src))
+                        .filter(Files::isRegularFile)
+                        .forEach(source -> copy(source,target.resolve(Paths.get(src).relativize(source))));
+        }
+    }
     private Docker() throws IOException {
         String crypt_name = get_property(default_property,"user",null)[0];
         String crypt_password = get_property(default_property,"password",null)[0];
@@ -615,6 +633,11 @@ public class Docker {
             source_list.setModel(sdb);
             source_base_name[0] =(String) source_list.getSelectedValue();
             source_list.setSelectedIndex(0);
+            try {
+                check_rac(path_to_1c,(String) server_1c_ver.getSelectedItem());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         });
         String free_space_on_disk = DockerSQL.get_mssql_free_space(dev_server)[0];
         final int sql_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[1]);
@@ -622,6 +645,11 @@ public class Docker {
         wmi_space.setText("<html>"+free_space_on_disk+"<html>");
         final String[] warn_message = new String[1];
         backup_restore_db_button.addActionListener(actionEvent -> {
+            try {
+                check_rac(path_to_1c, (String) server_1c_ver.getSelectedItem());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
             final Date d = new Date();
             SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-YY_HH-mm-ss-S");
             final String date = dateFormat.format(d);
@@ -686,6 +714,11 @@ public class Docker {
         });
         removeDbButton.addActionListener(actionEvent -> {
             int approve;
+            try {
+                check_rac(path_to_1c, (String) server_1c_ver.getSelectedItem());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
             approve = JOptionPane.showConfirmDialog(main,"Удаляем базу "+target_base_name[0]+" ?","Удаление базы", JOptionPane.YES_NO_OPTION);
             if(approve == 0){
                 try {
@@ -718,7 +751,8 @@ public class Docker {
                 removeDbButton.setEnabled(false);
             }
         });
-        create_new_db_check_box.addItemListener(e -> enable_ui_target(create_new_db_check_box.isSelected()));
+        create_new_db_check_box.addItemListener(e ->
+                enable_ui_target(create_new_db_check_box.isSelected()));
         my_bases_only_check_box.addItemListener(e -> {
             if(e.getStateChange() == ItemEvent.SELECTED){
                 target_search.setText(System.getProperty("user.name"));

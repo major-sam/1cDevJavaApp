@@ -173,7 +173,7 @@ class Docker1C {
         String[] server_1c_ver_with_port=Docker.get_property(Docker.default_property, "server_1c_ver_with_ras", ",");
         String p =  server_1c_ver_with_port[0].split(":")[1];
         String port = p.substring(0, p.length() -1)+"1";
-        String rac_bin = path_to_1c + version +  Docker.path_1c_exe;
+        String bin = path_to_1c + version +  Docker.path_1c_exe;
         String param = "";
         String f = "";
         if (format.equals("bak cf")){
@@ -193,7 +193,7 @@ class Docker1C {
             param = "/RestoreIB";
         }
         final boolean[] status= {false};
-        final String command = "\""+ rac_bin +"\"" +" DESIGNER /S\""+server+":"+port+"\\"+infobase + "\" " +param+" "
+        final String command = "\""+ bin +"\"" +" DESIGNER /S\""+server+":"+port+"\\"+infobase + "\" " +param+" "
                 + path+"\\"+infobase+ f;
         Thread run1c = new Thread(() -> {
             try {
