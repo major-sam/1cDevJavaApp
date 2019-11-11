@@ -1,8 +1,6 @@
 package com.docker;
 
-import com.microsoft.sqlserver.jdbc.StringUtils;
 import org.jasypt.util.text.StrongTextEncryptor;
-
 import javax.swing.*;
 import javax.swing.event.*;
 import java.awt.*;
@@ -43,11 +41,10 @@ public class Docker {
     private JCheckBox my_bases_only_check_box, create_new_db_check_box;
     private List source_buffer, target_buffer;
     static String user_name, user_password;
-    private Integer backup_progress, restore_progress;
     private static Path currentRelativePath = Paths.get("conf/default.properties");
     static String default_property = currentRelativePath.toAbsolutePath().toString();
-    static String path_1c_exe = "\\bin\\1cv8.exe";
-    static String path_rac_exe = "\\bin\\rac.exe";
+    static String path_1c_exe = get_property(default_property,"path_1c_exe", null)[0];
+    static String path_rac_exe = get_property(default_property,"path_rac_exe", null)[0];
 
     private void set_access(String basename){
         String admin_account = get_property(default_property,"admin_account",null)[0];
@@ -309,12 +306,12 @@ public class Docker {
             }
             else {
                 String query_salt ="'BACKUP%'";
-                backup_progress = DockerSQL.get_mssql_progress(query_salt, selected_server, backup_name);
+                int backup_progress = DockerSQL.get_mssql_progress(query_salt, selected_server, backup_name);
                 progressbar1.setValue(backup_progress);
             }
         },0,2, TimeUnit.SECONDS);
     }
-    private void restore_db(final String source_server, final String target_server, final String target_base,
+    private void restore_db(String source_server, final String target_server, final String target_base,
                             final String backup_name, final String backup_sh_folder, final JProgressBar bar) {
         String get_data_path= "select  SERVERPROPERTY('InstanceDefaultDataPath') as a",
                 get_log_path= "select  serverproperty('InstanceDefaultLogPath') as a";
@@ -322,8 +319,9 @@ public class Docker {
         final String log_path = DockerSQL.get_mssql_path(get_log_path, target_server);
         final boolean[] res_thread_status = {false};
         String path = "";
+        String source_server_name = source_server.split("\\\\")[0];
         if (!source_server.equals(target_server)) {
-            path = "\\\\" + source_server + "\\" + backup_sh_folder + "\\";
+            path = "\\\\" + source_server_name + "\\" + backup_sh_folder + "\\";
         }
         final String finalPath = path;
         Thread restore_db = new Thread(() -> {
@@ -409,7 +407,7 @@ public class Docker {
             }
             else  {
                 String query_salt = "'RESTORE%'";
-                restore_progress = DockerSQL.get_mssql_progress(query_salt, target_server, backup_name);
+                int restore_progress = DockerSQL.get_mssql_progress(query_salt, target_server, backup_name);
                 bar.setValue(restore_progress);
             }
         },0,2, TimeUnit.SECONDS);
