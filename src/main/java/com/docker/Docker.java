@@ -1,6 +1,6 @@
 package com.docker;
 
-import jdk.nashorn.internal.scripts.JO;
+import com.microsoft.sqlserver.jdbc.StringUtils;
 import org.jasypt.util.text.StrongTextEncryptor;
 
 import javax.swing.*;
@@ -29,7 +29,7 @@ import javax.swing.filechooser.FileSystemView;
 import javax.swing.filechooser.FileView;
 
 public class Docker {
-    private JButton backup_restore_db_button, quit, useMyBackupButton, run1cButton, run1cDesignerButton, getDtButton,
+    private JButton run_task_button, quit, useMyBackupButton, run1cButton, run1cDesignerButton, getDtButton,
             getCfButton, run1cAdminConsoleButton, run1cWithParamsButton, getSqlBakButton, removeDbButton, openLogsButton
             ,dev_base_renew, params_help;
     private JLabel source_base_size, wmi_space, source_base_creation_date,target_base_creation_date,target_base_size;
@@ -48,6 +48,20 @@ public class Docker {
     static String default_property = currentRelativePath.toAbsolutePath().toString();
     static String path_1c_exe = "\\bin\\1cv8.exe";
     static String path_rac_exe = "\\bin\\rac.exe";
+
+    private void set_access(String basename){
+        String admin_account = get_property(default_property,"admin_account",null)[0];
+        boolean test_admin = System.getProperty("user.name").equals(admin_account);
+        boolean test_owner = basename.startsWith(System.getProperty("user.name"));
+        if (!test_admin & !test_owner){
+            removeDbButton.setEnabled(false);
+            run_task_button.setEnabled(false);
+        }
+        else{
+            removeDbButton.setEnabled(true);
+            run_task_button.setEnabled(true);
+        }
+    }
 
     private String check_local_1c_bin(){
         boolean x64_has_client = false, x86_has_client = false;
@@ -158,7 +172,7 @@ public class Docker {
         server_list.setEnabled(state);
         source_list.setEnabled(state);
         target_list.setEnabled(state);
-        backup_restore_db_button.setEnabled(state);
+        run_task_button.setEnabled(state);
         quit.setEnabled(state);
         source_search.setEnabled(state);
         target_search.setEnabled(state);
@@ -180,6 +194,7 @@ public class Docker {
         add_new_infobase_comment.setEnabled(state);
         add_new_infobase_alias_name.setEnabled(state);
         server_1c_ver.setEnabled(state);
+        run_task_button.setEnabled(state);
     }
     private void enable_ui_prod_dev(String state){
         if (state.equals("dev")){
@@ -198,16 +213,28 @@ public class Docker {
             quit.setEnabled(true);
         }
     }
-    private void wright_log(String  date, String selected_server, String source_base_name ,String target_base_name,String new_base) throws IOException {
+    private void wright_log(String date, String selected_server, String source_base_name ,String target_base_name,String new_base, Boolean remove_state) throws IOException {
         String log_file_path = get_property(default_property,"log_file",null)[0].replace("\\log","\\log$");
-        String line ;
-        if (create_new_db_check_box.isSelected()){
-            line = date+" "+System.getProperty("user.name")+" "+InetAddress.getLocalHost().getHostName()+
-                " "+selected_server+" From: \t"+source_base_name+" To: \t"+target_base_name + "\n";
+        String tab_sep = "#######";
+        String line_sep = ("=============================================================================\r\n");
+        String line =date +"\r\n"
+                +tab_sep+String.format("%-20s","User:"+System.getProperty("user.name")+" Host:"+InetAddress.getLocalHost().getHostName() +" Action: ");
+        if (remove_state){
+            line = line +"REMOVE"+ "\r\n"
+                    + tab_sep + "REMOVED DB:" + target_base_name + "\r\n" +
+                    line_sep;
+        }
+        else if (create_new_db_check_box.isSelected()){
+            line = line + "CREATE"+"\r\n"
+                    + tab_sep + "NEW DB: "+new_base + "\r\n"+
+                    line_sep;
         }
         else {
-            line = date+" "+System.getProperty("user.name")+" "+InetAddress.getLocalHost().getHostName()+
-                    " NEW DB: \t"+new_base + "\n";
+            line = line +
+                    "UPDATE"+"\r\n"
+                    + tab_sep + "Source server:" + selected_server + " Source base: " + source_base_name + " Target Base: "
+                    + target_base_name + "\r\n"+
+                    line_sep;
         }
         new File(log_file_path);
         byte[] strToBytes = line.getBytes();
@@ -527,7 +554,6 @@ public class Docker {
         final String dev_server =  get_property(default_property,"dev_server",null)[0];
         final String backup_dir =  get_property(default_property,"bak_dir_name",null)[0];
         final String server_1c = get_property(default_property,"1c_server",null)[0];
-        final String admin_account = get_property(default_property,"admin_account",null)[0];
         final String[] server_1c_ver_with_port =get_property(default_property,"server_1c_ver_with_ras",",");
         final Path  localRelativePath = Paths.get(get_property(default_property,"local.property",null)[0]);
         final String local_property = localRelativePath.toAbsolutePath().toString();
@@ -592,12 +618,10 @@ public class Docker {
         String target_creation_date= DockerSQL.get_mssql_db_creation_date(target_base_name[0], dev_server);
         target_base_size.setText(target_db_size+" MB");
         target_base_creation_date.setText(target_creation_date);
-        boolean test_admin = System.getProperty("user.name").equals(admin_account);
-        boolean test_owner = false;
-        if  (target_base_name[0]!=null){
-            test_owner = target_base_name[0].contains(System.getProperty("user.name"));
+        if (target_base_name[0] != null){
+            set_access(target_base_name[0]);
         }
-        if (!test_admin & !test_owner){
+        else{
             removeDbButton.setEnabled(false);
         }
         ImageIcon img = new ImageIcon("conf/icon.png");
@@ -644,7 +668,7 @@ public class Docker {
         final int bak_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[2]);
         wmi_space.setText("<html>"+free_space_on_disk+"<html>");
         final String[] warn_message = new String[1];
-        backup_restore_db_button.addActionListener(actionEvent -> {
+        run_task_button.addActionListener(actionEvent -> {
             try {
                 check_rac(path_to_1c, (String) server_1c_ver.getSelectedItem());
             } catch (IOException e) {
@@ -704,7 +728,7 @@ public class Docker {
             if(approve == 0){
                 final String backup_name = System.getProperty("user.name")+"_"+source_base_name[0]+"_"+date;
                 try {
-                    wright_log(date,selected_server[0],source_base_name[0],target_base_name[0],backup_name);
+                    wright_log(date,selected_server[0],source_base_name[0],target_base_name[0],backup_name,false);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -726,6 +750,14 @@ public class Docker {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+                final Date d = new Date();
+                SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-YY_HH-mm-ss-S");
+                final String date = dateFormat.format(d);
+                try {
+                    wright_log(date,selected_server[0],source_base_name[0],target_base_name[0],null,true);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         });
         quit.addActionListener(actionEvent -> System.exit(0));
@@ -742,13 +774,8 @@ public class Docker {
             String target_creation_date1 = DockerSQL.get_mssql_db_creation_date(target_base_name[0], dev_server);
             target_base_size.setText(target_db_size1 +" MB");
             target_base_creation_date.setText(target_creation_date1);
-            boolean test_admin1 = System.getProperty("user.name").equals(admin_account);
-            boolean test_owner1 = false;
-            if  (target_base_name[0]!=null){
-                test_owner1 = target_base_name[0].contains(System.getProperty("user.name"));
-            }
-            if (!test_admin1 & !test_owner1){
-                removeDbButton.setEnabled(false);
+            if(target_base_name[0] != null){
+                set_access(target_base_name[0]);
             }
         });
         create_new_db_check_box.addItemListener(e ->
@@ -760,6 +787,7 @@ public class Docker {
             else {
                 target_search.setText("");
             }
+            SwingUtilities.updateComponentTreeUI(main);
         });
         source_search.getDocument().addDocumentListener(new DocumentListener(){
             @Override public void insertUpdate(DocumentEvent e) { filter(); }
@@ -815,12 +843,32 @@ public class Docker {
             enable_ui_prod_dev(res);
         });
         openLogsButton.addActionListener(actionEvent -> {
+            StringBuilder text = new StringBuilder();
             try {
-                Runtime.getRuntime().exec("notepad "+ get_property(default_property,"log_file",null)[0]);
+                Files.lines(new File(get_property(default_property,"log_file",null)[0]).toPath())
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .forEach(s -> {
+                            text.append(s);
+                            text.append(System.getProperty("line.separator"));
+                        });
             }
-            catch (IOException ex){
-                ex.printStackTrace();
+            catch (IOException e) {
+                e.printStackTrace();
             }
+            JEditorPane textArea = new JEditorPane("text", text.toString());
+            JScrollPane scrollPane = new JScrollPane(textArea);
+            scrollPane.setPreferredSize( new Dimension( 800, 500 ) );
+            JOptionPane.showMessageDialog(null,scrollPane
+                    ,
+                    "log"
+                    , JOptionPane.INFORMATION_MESSAGE, help_icon);
+//            try {
+//                Runtime.getRuntime().exec("notepad "+ get_property(default_property,"log_file",null)[0]);
+//            }
+//            catch (IOException ex){
+//                ex.printStackTrace();
+//            }
         });
         params_help.addActionListener(actionEvent -> {
             Properties props = new Properties();
@@ -839,7 +887,7 @@ public class Docker {
             String text = props.getProperty("info");
             JEditorPane textArea = new JEditorPane("text/html", text);
             JScrollPane scrollPane = new JScrollPane(textArea);
-            scrollPane.setPreferredSize( new Dimension( 500, 500 ) );
+            scrollPane.setPreferredSize( new Dimension( 800, 500 ) );
             JOptionPane.showMessageDialog(null,scrollPane
                     ,
                     "Информация по парамерам запуска"

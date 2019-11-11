@@ -137,9 +137,15 @@ class Docker1C {
                 "Connect=Srvr=\"" + srvr + "\";Ref=\"" + infobase + "\"\r\n" +
                 "Folder=/" + System.getProperty("user.name") + "/\r\n\r\n";
         String path = share_for_1c_lists + System.getProperty("user.name") + ".v8i";
-        new File(path);
+        File new_file = new File(path);
         byte[] strToBytes = infobase_settings.getBytes();
-        Files.write(Paths.get(path), strToBytes, StandardOpenOption.APPEND);
+        if (new_file.createNewFile()) {
+            Files.write(Paths.get(path), strToBytes, StandardOpenOption.APPEND);
+        }
+        else{
+            Files.write(Paths.get(path), strToBytes);
+
+        }
     }
     private static void remove_infobase_from_list(String file,String infobase) throws IOException {
         BufferedReader in = new BufferedReader(new FileReader(file)) ;
