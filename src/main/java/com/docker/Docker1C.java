@@ -1,6 +1,8 @@
 package com.docker;
 
+
 import javax.swing.*;
+import java.awt.*;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -175,28 +177,40 @@ class Docker1C {
         byte[] strToBytes = l.getBytes();
         Files.write(Paths.get(file), strToBytes);
     }
-    static void run_designer_command(String version, String server, String infobase, String path, String path_to_1c, String format){
+    static void run_designer_command(String version, String server, String infobase, String path, String path_to_1c, String format, JButton quit, JLabel spinner){
+        quit.setEnabled(false);
+        spinner.setEnabled(true);
+        ImageIcon icon = new ImageIcon("conf/spinner.gif");
+        Image img = icon.getImage();
+        Image image = img.getScaledInstance(54,54,Image.SCALE_REPLICATE);
+        icon = new ImageIcon(image);
+        spinner.setIcon(icon);
         String[] server_1c_ver_with_port=Docker.get_property(Docker.default_property, "server_1c_ver_with_ras", ",");
         String p =  server_1c_ver_with_port[0].split(":")[1];
         String port = p.substring(0, p.length() -1)+"1";
         String bin = path_to_1c + version +  Docker.path_1c_exe;
         String param = "";
         String f = "";
+        String msg ="";
         if (format.equals("bak cf")){
             f = ".cf";
             param = "/DumpCfg";
+            msg =".cf creating is done";
         }
         else if (format.equals("bak dt")){
             f = ".dt";
             param = "/DumpIB";
+            msg =".dt creating is done";
         }
         if (format.equals("load cf")){
             f = ".cf";
             param = "/LoadCfg";
+            msg =".cf uploading is done";
         }
         else if (format.equals("load dt")){
             f = ".dt";
             param = "/RestoreIB";
+            msg =".dt uploading is done";
         }
         final boolean[] status= {false};
         final String command = "\""+ bin +"\"" +" DESIGNER /S\""+server+":"+port+"\\"+infobase + "\" " +param+" "
@@ -212,10 +226,14 @@ class Docker1C {
         ScheduledExecutorService scheduler_res = Executors.newSingleThreadScheduledExecutor();
         scheduler_res.schedule(run1c, 1, TimeUnit.SECONDS);
         final ScheduledExecutorService watcher = Executors.newSingleThreadScheduledExecutor();
+        String finalMsg = msg;
         watcher.scheduleAtFixedRate(() -> {
             if (status[0]) {
+                quit.setEnabled(true);
+                spinner.setEnabled(false);
+                spinner.setIcon(null);
                 JOptionPane.showConfirmDialog(null,
-                        "CF DONE", "Done", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE);
+                        finalMsg, "Done", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE);
                 Thread.currentThread().interrupt();
                 watcher.shutdown();
             }

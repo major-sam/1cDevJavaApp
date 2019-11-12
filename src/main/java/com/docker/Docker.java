@@ -39,6 +39,7 @@ public class Docker {
             run_1c_custom_params;
     public  JComboBox server_list, server_1c_ver, dev_prod_switch;
     private JCheckBox my_bases_only_check_box, create_new_db_check_box;
+    private JLabel spinner;
     private List source_buffer, target_buffer;
     static String user_name, user_password;
     private static Path currentRelativePath = Paths.get("conf/default.properties");
@@ -997,7 +998,7 @@ public class Docker {
             f.showSaveDialog(null);
             Path localRelativePath13 = Paths.get(String.valueOf(f.getSelectedFile()));
             String path = localRelativePath13.toAbsolutePath().toString();
-            Docker1C.run_designer_command(version,dev_server,infobase,path,path_to_1c, "bak dt");
+            Docker1C.run_designer_command(version,dev_server,infobase,path,path_to_1c, "bak dt", quit,spinner);
         });
         getCfButton.addActionListener(actionEvent -> {
             String infobase =(String) target_list.getSelectedValue();
@@ -1018,7 +1019,7 @@ public class Docker {
             f.showSaveDialog(null);
             Path localRelativePath12 = Paths.get(String.valueOf(f.getSelectedFile()));
             String path = localRelativePath12.toAbsolutePath().toString();
-            Docker1C.run_designer_command(version,dev_server,infobase,path,path_to_1c, "bak cf");
+            Docker1C.run_designer_command(version,dev_server,infobase,path,path_to_1c, "bak cf", quit,spinner);
         });
         getSqlBakButton.addActionListener(actionEvent -> {
             String base =(String) target_list.getSelectedValue();
@@ -1054,10 +1055,10 @@ public class Docker {
             Path localRelativePath1 = Paths.get(String.valueOf(f.getSelectedFile()));
             String path = localRelativePath1.toAbsolutePath().toString();
             if(path.endsWith(".dt")){
-                Docker1C.run_designer_command(version,dev_server,infobase,path,path_to_1c, "load dt");
+                Docker1C.run_designer_command(version,dev_server,infobase,path,path_to_1c, "load dt", quit,spinner);
             }
             else if (path.endsWith(".cf")){
-                Docker1C.run_designer_command(version,dev_server,infobase,path,path_to_1c, "load cf");
+                Docker1C.run_designer_command(version,dev_server,infobase,path,path_to_1c, "load cf", quit,spinner);
             }
             else if (path.endsWith(".bak")){
                 Path in = Paths.get(path);
