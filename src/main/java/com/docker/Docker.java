@@ -165,7 +165,6 @@ public class Docker {
         getCfButton.setEnabled(state);
         getDtButton.setEnabled(state);
         getSqlBakButton.setEnabled(state);
-        removeDbButton.setEnabled(state);
         useMyBackupButton.setEnabled(state);
         server_list.setEnabled(state);
         source_list.setEnabled(state);
@@ -478,7 +477,6 @@ public class Docker {
     private void get_backup(final String selected_server, final String source_base_name, final String backup_name){
         final boolean[] bak_thread_status = {false};
         Thread backup_db = new Thread(() -> {
-
             get_backup_progress_bar.setMinimum(0);
             get_backup_progress_bar.setMaximum(100);
             get_backup_progress_bar.setValue(0);
@@ -541,6 +539,7 @@ public class Docker {
                         .forEach(source -> copy(source,target.resolve(Paths.get(src).relativize(source))));
         }
     }
+    //TODO archives
     private Docker() throws IOException {
         String crypt_name = get_property(default_property,"user",null)[0];
         String crypt_password = get_property(default_property,"password",null)[0];
@@ -589,6 +588,8 @@ public class Docker {
         final String[] selected_server = {mssql_servers[0]};
         source_scroll.setViewportView(source_list);
         target_scroll.setViewportView(target_list);
+        source_list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        target_list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         final DefaultListModel sdb  = new DefaultListModel();
         final DefaultListModel tdb = new DefaultListModel();
         List<String> bases_on_server = base_lists.get(base_dictionary.get(selected_server[0]));

@@ -20,9 +20,9 @@ class ListColorRenderer extends DefaultListCellRenderer {
         String[] date = dateFormat.format(d).split("\\.");
         int year =Integer.parseInt(date[0]);
         int month = Integer.parseInt(date[1]);
-        if ((year - db_creation_year )*12 +db_creation_month - month <=3){
+        if ((year - db_creation_year )*12 +db_creation_month - month <=1){
             c.setBackground(Color.GREEN);
-        }
+        }//TODO archive list
         else{
             c.setBackground( Color.RED );
         }

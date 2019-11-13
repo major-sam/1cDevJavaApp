@@ -4,10 +4,13 @@ package com.docker;
 import javax.swing.*;
 import java.awt.*;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -137,18 +140,12 @@ class Docker1C {
         String srvr = server_1c + server_1c_port;
         String infobase_settings = "[" + infobase_name + "]\r\n" +
                 "Connect=Srvr=\"" + srvr + "\";Ref=\"" + infobase + "\"\r\n" +
-                "Folder=/" + System.getProperty("user.name") + "/\r\n\r\n";
-        String path = share_for_1c_lists + System.getProperty("user.name") + ".v8i";
-        File new_file = new File(path);
-        byte[] strToBytes = infobase_settings.getBytes();
-        if (new_file.createNewFile()) {
-            Files.write(Paths.get(path), strToBytes, StandardOpenOption.APPEND);
-        }
-        else{
-            Files.write(Paths.get(path), strToBytes);
-
-        }
+                "Folder=/DEV/" + System.getProperty("user.name") + "/\r\n\r\n";
+        final Path path =Paths.get(share_for_1c_lists + System.getProperty("user.name") + ".v8i");
+        Files.write(path, Collections.singletonList(infobase_settings), StandardCharsets.UTF_8,
+                Files.exists(path) ? StandardOpenOption.APPEND : StandardOpenOption.CREATE);
     }
+
     private static void remove_infobase_from_list(String file,String infobase) throws IOException {
         BufferedReader in = new BufferedReader(new FileReader(file)) ;
         String line_in;
