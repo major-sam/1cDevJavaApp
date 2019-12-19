@@ -12,7 +12,10 @@ class ListColorRenderer extends DefaultListCellRenderer {
         String db_name = value.toString();
         final String dev_server =  Docker.get_property(Docker.default_property,"dev_server",null)[0];
         String db_cd = DockerSQL.get_mssql_db_creation_date(db_name, dev_server);
-        String[] db_creation_date = db_cd.split("\\.");
+        String[] db_creation_date = {"0","0"};
+        if (db_cd != null){
+            db_creation_date = db_cd.split("\\.");
+        }
         int db_creation_year = Integer.parseInt(db_creation_date[0]);
         int db_creation_month = Integer.parseInt(db_creation_date[1]);
         Date d = new Date();

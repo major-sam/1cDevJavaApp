@@ -14,6 +14,8 @@ import java.util.Collections;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 class Docker1C {
     static ArrayList<String> run_shell_command(String command) throws IOException {
@@ -115,7 +117,10 @@ class Docker1C {
         String cluster_id = get_cluster_id(rac_bin,rac_service);
         String infobase_id = get_infobase_id(base_name,rac_service,rac_bin,cluster_id);
         String command = "\""+ rac_bin +"\"" + " "+ rac_service+" infobase --cluster="+cluster_id+ " drop --infobase="+infobase_id;
-        run_shell_command(command);
+        ArrayList lines = run_shell_command(command);
+        for (Object line : lines){
+            System.out.println(line.toString());
+        }
         DockerSQL.remove_db(server_1c,base_name);
         String[] share_for_1c_lists= Docker.get_property(Docker.default_property, "share_for_1c_lists", null);
         String path = Paths.get(share_for_1c_lists[0]).toString() + System.getProperty("user.name") + ".v8i";

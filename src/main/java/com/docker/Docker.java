@@ -40,7 +40,8 @@ public class Docker {
     public  JComboBox server_list, server_1c_ver, dev_prod_switch;
     private JCheckBox my_bases_only_check_box, create_new_db_check_box;
     private JLabel spinner;
-    private List source_buffer, target_buffer;
+    private List source_buffer;
+    private List target_buffer;
     static String user_name, user_password;
     private static Path currentRelativePath = Paths.get("conf/default.properties");
     static String default_property = currentRelativePath.toAbsolutePath().toString();
@@ -60,7 +61,6 @@ public class Docker {
             run_task_button.setEnabled(true);
         }
     }
-
     private String check_local_1c_bin(){
         boolean x64_has_client = false, x86_has_client = false;
         String[] v = get_property(default_property,"server_1c_ver_with_ras",",");
@@ -210,7 +210,8 @@ public class Docker {
             quit.setEnabled(true);
         }
     }
-    private void wright_log(String date, String selected_server, String source_base_name ,String target_base_name,String new_base, Boolean remove_state) throws IOException {
+    private void wright_log(String date, String selected_server, String source_base_name,
+                            String target_base_name,String new_base, Boolean remove_state , String ver) throws IOException {
         String log_file_path = get_property(default_property,"log_file",null)[0].replace("\\log","\\log$");
         String tab_sep = "#######";
         String line_sep = ("=============================================================================\r\n");
@@ -223,7 +224,7 @@ public class Docker {
         }
         else if (create_new_db_check_box.isSelected()){
             line = line + "CREATE"+"\r\n"
-                    + tab_sep + "NEW DB: "+new_base + "\r\n"+
+                    + tab_sep + "NEW DB: "+new_base+ " 1c version:"+ ver + "\r\n"+
                     line_sep;
         }
         else {
@@ -557,32 +558,15 @@ public class Docker {
         final String local_property = localRelativePath.toAbsolutePath().toString();
         check_local_conf(local_property);
         final String path_to_1c = get_property(local_property,"path_to_1c",null)[0];
-        final List<List<String>> base_lists = new ArrayList<>();
-        final Map<String, Integer> base_dictionary = new HashMap<>();
-        Integer id = 0;
         DefaultComboBoxModel s_model = new DefaultComboBoxModel();
         DefaultComboBoxModel c_model = new DefaultComboBoxModel();
-        for(String srv: mssql_servers){
-            base_dictionary.put(srv,id);
-            id++;
-            s_model.addElement(srv);
-            List<String> list;
-            list = DockerSQL.get_mssql_db_list(srv);
-            base_lists.add(list);
-        }
         for(String c: server_1c_ver_with_port){
             String[] server_1c_ver = c.split(":");
             c_model.addElement(server_1c_ver[0]);
         }
-//TODO    ALL LIST STILL IN DEV
-//        s_model.addElement("ALL");
-//        base_dictionary.put("ALL", id);
-//        reverse_base_dictionary.put(id,"ALL");
-//        List<String> all_list =  new ArrayList<String>();
-//        for (List<String> base_list : base_lists) {
-//            all_list.addAll(base_list);
-//        }
-//        base_lists.add(all_list);
+        for(String srv: mssql_servers){
+            s_model.addElement(srv);
+        }
         server_list.setModel(s_model);
         server_1c_ver.setModel(c_model);
         final String[] selected_server = {mssql_servers[0]};
@@ -592,12 +576,14 @@ public class Docker {
         target_list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         final DefaultListModel sdb  = new DefaultListModel();
         final DefaultListModel tdb = new DefaultListModel();
-        List<String> bases_on_server = base_lists.get(base_dictionary.get(selected_server[0]));
-        List<String> bases_on_dev_server = base_lists.get(base_dictionary.get(dev_server));
-        for (String base: bases_on_server) {
+        List<String> list;
+        list = DockerSQL.get_mssql_db_list(selected_server[0]);
+        List<String> dev_list;
+        dev_list = DockerSQL.get_mssql_db_list(dev_server);
+        for (String base: list) {
             sdb.addElement(base);
         }
-        for (String base: bases_on_dev_server) {
+        for (String base: dev_list) {
             tdb.addElement(base);
         }
         source_buffer = get_items_for_filter(sdb);
@@ -649,19 +635,16 @@ public class Docker {
                 selected_server[0] = (String) itemEvent.getItem();
             }
             sdb.clear();
+            source_buffer.clear();
             source_list.setModel(sdb);
-            List<String> bases_on_server1 = base_lists.get(base_dictionary.get(selected_server[0]));
+            List<String> bases_on_server1 = DockerSQL.get_mssql_db_list(selected_server[0]);
             for (String base: bases_on_server1) {
                 sdb.addElement(base);
             }
             source_list.setModel(sdb);
+            source_buffer = get_items_for_filter(sdb);
             source_base_name[0] =(String) source_list.getSelectedValue();
             source_list.setSelectedIndex(0);
-            try {
-                check_rac(path_to_1c,(String) server_1c_ver.getSelectedItem());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
         });
         String free_space_on_disk = DockerSQL.get_mssql_free_space(dev_server)[0];
         final int sql_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[1]);
@@ -715,7 +698,7 @@ public class Docker {
                 }
                 approve = JOptionPane.showConfirmDialog(null,
                             title
-                            +"\nСервер: \t"+selected_server[0]
+                            +"\nСервер: \t"+ selected_server[0]
                             +"\nИЗ: "+source_base_name[0]
                             +additional_string
                             +"\nДополнительное место: "+extra+" MB"
@@ -728,7 +711,8 @@ public class Docker {
             if(approve == 0){
                 final String backup_name = System.getProperty("user.name")+"_"+source_base_name[0]+"_"+date;
                 try {
-                    wright_log(date,selected_server[0],source_base_name[0],target_base_name[0],backup_name,false);
+                    wright_log(date, selected_server[0],source_base_name[0],target_base_name[0],backup_name,
+                            false,(String) server_1c_ver.getSelectedItem());
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -754,7 +738,8 @@ public class Docker {
                 SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-YY_HH-mm-ss-S");
                 final String date = dateFormat.format(d);
                 try {
-                    wright_log(date,selected_server[0],source_base_name[0],target_base_name[0],null,true);
+                    wright_log(date, selected_server[0],source_base_name[0],target_base_name[0],
+                            null,true,(String) server_1c_ver.getSelectedItem());
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -824,14 +809,14 @@ public class Docker {
             }
         });
         dev_base_renew.addActionListener(actionEvent -> {
-        List<String> list = DockerSQL.get_mssql_db_list(dev_server);
-        tdb.clear();
-        for (String base : list){
-            tdb.addElement(base);
-        }
-        target_list.setModel(tdb);
-        target_list.setSelectedIndex(0);
-        target_list.setCellRenderer(new ListColorRenderer());
+            List<String> renewed_list = DockerSQL.get_mssql_db_list(dev_server);
+            tdb.clear();
+            for (String base : renewed_list){
+                tdb.addElement(base);
+            }
+            target_list.setModel(tdb);
+            target_list.setSelectedIndex(0);
+            target_list.setCellRenderer(new ListColorRenderer());
         });
         dev_prod_switch.addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED){
