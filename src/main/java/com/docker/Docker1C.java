@@ -14,8 +14,6 @@ import java.util.Collections;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 class Docker1C {
     static ArrayList<String> run_shell_command(String command) throws IOException {
@@ -127,7 +125,7 @@ class Docker1C {
         remove_infobase_from_list(path, base_name);
 
     }
-    static void add_infobase_to_list(String server_1c, String ver, String infobase, String infobase_name)
+    static void add_infobase_to_list(String server_1c, String ver, String infobase, String infobase_name, String filename)
             throws IOException {
         String rac_port , server_1c_port = "";
         String[] server_1c_ver_with_ras = Docker.get_property(Docker.default_property, "server_1c_ver_with_ras", ",");
@@ -143,15 +141,25 @@ class Docker1C {
             }
         }
         String srvr = server_1c + server_1c_port;
-        String infobase_settings = "[" + infobase_name + "]\r\n" +
-                "Connect=Srvr=\"" + srvr + "\";Ref=\"" + infobase + "\"\r\n" +
-                "Folder=/DEV/" + System.getProperty("user.name") + "/\r\n\r\n";
-        final Path path =Paths.get(share_for_1c_lists + System.getProperty("user.name") + ".v8i");
+        String infobase_settings;
+        Path path;
+        if (!filename.equals(Docker.get_property(Docker.default_property, "all_user_list", null)[0])) {
+            infobase_settings = "[" + infobase_name + "]\r\n" +
+                    "Connect=Srvr=\"" + srvr + "\";Ref=\"" + infobase + "\"\r\n" +
+                    "Folder=/DEV/" + filename + "/\r\n";
+            path = Paths.get(share_for_1c_lists + filename + ".v8i");
+        }
+        else{
+            infobase_settings = "[" + infobase_name + "]\r\n" +
+                    "Connect=Srvr=\"" + srvr + "\";Ref=\"" + infobase + "\"\r\n" +
+                    "Folder=/TEST INFOBASE/" + "\r\n";
+            path = Paths.get(filename );
+        }
         Files.write(path, Collections.singletonList(infobase_settings), StandardCharsets.UTF_8,
                 Files.exists(path) ? StandardOpenOption.APPEND : StandardOpenOption.CREATE);
     }
 
-    private static void remove_infobase_from_list(String file,String infobase) throws IOException {
+    static void remove_infobase_from_list(String file,String infobase) throws IOException {
         BufferedReader in = new BufferedReader(new FileReader(file)) ;
         String line_in;
         StringBuilder line_out = new StringBuilder();
@@ -178,6 +186,22 @@ class Docker1C {
         String l = line_out.toString();
         byte[] strToBytes = l.getBytes();
         Files.write(Paths.get(file), strToBytes);
+    }
+    static String find_infobase_in_list(String file,String infobase) throws IOException {
+        String is_base_found = null;
+        BufferedReader in = new BufferedReader(new FileReader(file)) ;
+        String line_in;
+        String prev_line = null;
+        while ((line_in = in.readLine()) != null) {
+            if(line_in.contains(infobase)){
+                is_base_found = prev_line;
+            }
+            prev_line = line_in;
+        }
+        if (is_base_found != null){
+            return is_base_found.replace("[","").replace("]","");
+        }
+        else return null;
     }
     static void run_designer_command(String version, String server, String infobase, String path, String path_to_1c, String format, JButton quit, JLabel spinner){
         quit.setEnabled(false);

@@ -29,10 +29,10 @@ import javax.swing.filechooser.FileView;
 public class Docker {
     private JButton run_task_button, quit, useMyBackupButton, run1cButton, run1cDesignerButton, getDtButton,
             getCfButton, run1cAdminConsoleButton, run1cWithParamsButton, getSqlBakButton, removeDbButton, openLogsButton
-            ,dev_base_renew, params_help;
+            ,dev_base_renew, params_help, addToAllUserButton, removeFromAllUserButton;
     private JLabel source_base_size, wmi_space, source_base_creation_date,target_base_creation_date,target_base_size;
     private JProgressBar progressbar1, progressbar2, restore_my_bak_progress_bar, get_backup_progress_bar;
-    private JPanel main;
+    private JPanel main_frame;
     private JList  target_list, source_list;
     private JScrollPane source_scroll, target_scroll;
     private JTextField source_search, target_search, add_new_infobase_comment, add_new_infobase_alias_name,
@@ -43,6 +43,7 @@ public class Docker {
     private List source_buffer;
     private List target_buffer;
     static String user_name, user_password;
+    private DefaultListModel sdb = new DefaultListModel() ,  tdb = new DefaultListModel();
     private static Path currentRelativePath = Paths.get("conf/default.properties");
     static String default_property = currentRelativePath.toAbsolutePath().toString();
     static String path_1c_exe = get_property(default_property,"path_1c_exe", null)[0];
@@ -179,6 +180,8 @@ public class Docker {
         server_1c_ver.setEnabled(state);
         add_new_infobase_alias_name.setEnabled(state);
         add_new_infobase_comment.setEnabled(state);
+        addToAllUserButton.setEnabled(state);
+        removeFromAllUserButton.setEnabled(state);
         if(state){
             add_new_infobase_alias_name.setText("");
             add_new_infobase_comment.setText("");
@@ -285,7 +288,7 @@ public class Docker {
                     try {
                         String infobase_name = add_new_infobase_alias_name.getText();
                         Docker1C.create_1c_base(server_1c, dev_server, ver, backup_name,path_to_1c, description);
-                        Docker1C.add_infobase_to_list(server_1c,ver,backup_name,infobase_name);
+                        Docker1C.add_infobase_to_list(server_1c,ver,backup_name,infobase_name, System.getProperty("user.name"));
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -508,7 +511,7 @@ public class Docker {
         scheduled_bak_watch.scheduleAtFixedRate(() -> {
             if (bak_thread_status[0]) {
                 get_backup_progress_bar.setValue(100);
-                JOptionPane.showConfirmDialog(main,
+                JOptionPane.showConfirmDialog(main_frame,
                         "Backup done", "Done", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE);
                 Thread.currentThread().interrupt();
                 scheduled_bak_watch.shutdown();
@@ -540,7 +543,13 @@ public class Docker {
                         .forEach(source -> copy(source,target.resolve(Paths.get(src).relativize(source))));
         }
     }
-    //TODO archives
+    private void set_base_list(String server_name, DefaultListModel listModel){
+        List<String> list = DockerSQL.get_mssql_db_list(server_name);
+        listModel.clear();
+        for (String base: list) {
+            listModel.addElement(base);
+        }
+    }
     private Docker() throws IOException {
         String crypt_name = get_property(default_property,"user",null)[0];
         String crypt_password = get_property(default_property,"password",null)[0];
@@ -553,43 +562,34 @@ public class Docker {
         final String dev_server =  get_property(default_property,"dev_server",null)[0];
         final String backup_dir =  get_property(default_property,"bak_dir_name",null)[0];
         final String server_1c = get_property(default_property,"1c_server",null)[0];
+        final String all_user_list = get_property(default_property,"all_user_list",null)[0];
         final String[] server_1c_ver_with_port =get_property(default_property,"server_1c_ver_with_ras",",");
         final Path  localRelativePath = Paths.get(get_property(default_property,"local.property",null)[0]);
         final String local_property = localRelativePath.toAbsolutePath().toString();
         check_local_conf(local_property);
         final String path_to_1c = get_property(local_property,"path_to_1c",null)[0];
-        DefaultComboBoxModel s_model = new DefaultComboBoxModel();
         DefaultComboBoxModel c_model = new DefaultComboBoxModel();
         for(String c: server_1c_ver_with_port){
             String[] server_1c_ver = c.split(":");
             c_model.addElement(server_1c_ver[0]);
         }
+        server_1c_ver.setModel(c_model);
+        DefaultComboBoxModel s_model = new DefaultComboBoxModel();
+        server_list.setModel(s_model);
         for(String srv: mssql_servers){
             s_model.addElement(srv);
         }
-        server_list.setModel(s_model);
-        server_1c_ver.setModel(c_model);
         final String[] selected_server = {mssql_servers[0]};
         source_scroll.setViewportView(source_list);
         target_scroll.setViewportView(target_list);
         source_list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         target_list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        final DefaultListModel sdb  = new DefaultListModel();
-        final DefaultListModel tdb = new DefaultListModel();
-        List<String> list;
-        list = DockerSQL.get_mssql_db_list(selected_server[0]);
-        List<String> dev_list;
-        dev_list = DockerSQL.get_mssql_db_list(dev_server);
-        for (String base: list) {
-            sdb.addElement(base);
-        }
-        for (String base: dev_list) {
-            tdb.addElement(base);
-        }
+        set_base_list(selected_server[0],sdb);
         source_buffer = get_items_for_filter(sdb);
-        target_buffer = get_items_for_filter(tdb);
         source_list.setModel(sdb);
         source_list.setSelectedIndex(0);
+        set_base_list(dev_server,tdb);
+        target_buffer = get_items_for_filter(tdb);
         target_list.setModel(tdb);
         target_list.setCellRenderer(new ListColorRenderer());
         final String[] source_base_name = {null};
@@ -626,7 +626,7 @@ public class Docker {
         frame.setIconImage(img.getImage());
         frame.setMinimumSize(new Dimension(1000, 700));
         frame.setPreferredSize(new Dimension(1100, 700));
-        frame.add(main);
+        frame.add(main_frame);
         frame.pack();
         frame.setVisible(true);
 // listeners
@@ -727,7 +727,7 @@ public class Docker {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            approve = JOptionPane.showConfirmDialog(main,"Удаляем базу "+target_base_name[0]+" ?","Удаление базы", JOptionPane.YES_NO_OPTION);
+            approve = JOptionPane.showConfirmDialog(main_frame,"Удаляем базу "+target_base_name[0]+" ?","Удаление базы", JOptionPane.YES_NO_OPTION);
             if(approve == 0){
                 try {
                     Docker1C.remove_1c_base(dev_server,target_base_name[0],path_to_1c,(String) server_1c_ver.getSelectedItem());
@@ -743,6 +743,11 @@ public class Docker {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+                my_bases_only_check_box.setSelected(false);
+                target_search.setText(null);
+                set_base_list(dev_server,tdb);
+                target_buffer = get_items_for_filter(tdb);
+                target_list.setModel(tdb);
             }
         });
         quit.addActionListener(actionEvent -> System.exit(0));
@@ -772,7 +777,7 @@ public class Docker {
             else {
                 target_search.setText("");
             }
-            SwingUtilities.updateComponentTreeUI(main);
+            SwingUtilities.updateComponentTreeUI(main_frame);
         });
         source_search.getDocument().addDocumentListener(new DocumentListener(){
             @Override public void insertUpdate(DocumentEvent e) { filter(); }
@@ -799,13 +804,21 @@ public class Docker {
                 DefaultListModel model1 = (DefaultListModel) target_list.getModel();
                 model1.clear();
                 String s = target_search.getText();
-                for (Object o : target_buffer) {
-                    if (o.toString().contains(s)) {
+                if (!s.equals("")) {
+                    for (Object o : target_buffer) {
+                        if (o.toString().contains(s)) {
+                            model1.addElement(o.toString());
+                        }
+                    }
+                }
+                else {
+                    for (Object o : target_buffer) {
                         model1.addElement(o.toString());
                     }
                 }
                 target_list.setModel(model1);
                 target_list.setCellRenderer(new ListColorRenderer());
+
             }
         });
         dev_base_renew.addActionListener(actionEvent -> {
@@ -985,6 +998,42 @@ public class Docker {
             Path localRelativePath13 = Paths.get(String.valueOf(f.getSelectedFile()));
             String path = localRelativePath13.toAbsolutePath().toString();
             Docker1C.run_designer_command(version,dev_server,infobase,path,path_to_1c, "bak dt", quit,spinner);
+        });
+        addToAllUserButton.addActionListener(actionEvent -> {
+            String infobase =(String) target_list.getSelectedValue();
+            String base_in_list = null;
+            try {
+                base_in_list= Docker1C.find_infobase_in_list(all_user_list, infobase);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            if (base_in_list != null){
+                JOptionPane.showMessageDialog(main_frame, "Base " +base_in_list + " already in list");
+            }
+            else {
+                JFrame f = new JFrame("InputDialog Example #2");
+                String base_name = JOptionPane.showInputDialog(
+                        f,
+                        "Введите имя базы",
+                        "Имя базы",
+                        JOptionPane.QUESTION_MESSAGE);
+                if (base_name != null){
+                    String ver =(String) server_1c_ver.getSelectedItem();
+                    try {
+                        Docker1C.add_infobase_to_list(dev_server, ver, infobase, base_name, all_user_list);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        });
+        removeFromAllUserButton.addActionListener(actionEvent -> {
+            String infobase =(String) target_list.getSelectedValue();
+            try {
+                Docker1C.remove_infobase_from_list(all_user_list, infobase);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         });
         getCfButton.addActionListener(actionEvent -> {
             String infobase =(String) target_list.getSelectedValue();
