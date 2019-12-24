@@ -647,8 +647,8 @@ public class Docker {
             source_list.setSelectedIndex(0);
         });
         String free_space_on_disk = DockerSQL.get_mssql_free_space(dev_server)[0];
-        final int sql_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[1]);
-        final int bak_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[2]);
+        final int sql_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[2]);
+        final int bak_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[1]);
         wmi_space.setText("<html>"+free_space_on_disk+"<html>");
         final String[] warn_message = new String[1];
         run_task_button.addActionListener(actionEvent -> {
