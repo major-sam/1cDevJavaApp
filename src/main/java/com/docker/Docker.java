@@ -8,6 +8,7 @@ import java.awt.event.*;
 import java.io.*;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
+import static java.nio.charset.StandardCharsets.*;
 import java.nio.file.*;
 import java.sql.*;
 import java.text.SimpleDateFormat;
@@ -728,6 +729,7 @@ public class Docker {
                 e.printStackTrace();
             }
             approve = JOptionPane.showConfirmDialog(main_frame,"Удаляем базу "+target_base_name[0]+" ?","Удаление базы", JOptionPane.YES_NO_OPTION);
+            String infobase =(String) target_list.getSelectedValue();
             if(approve == 0){
                 try {
                     Docker1C.remove_1c_base(dev_server,target_base_name[0],path_to_1c,(String) server_1c_ver.getSelectedItem());
@@ -740,6 +742,11 @@ public class Docker {
                 try {
                     wright_log(date, selected_server[0],source_base_name[0],target_base_name[0],
                             null,true,(String) server_1c_ver.getSelectedItem());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                try {
+                    Docker1C.remove_infobase_from_list(all_user_list, infobase);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -1008,7 +1015,10 @@ public class Docker {
                 e.printStackTrace();
             }
             if (base_in_list != null){
-                JOptionPane.showMessageDialog(main_frame, "Base " +base_in_list + " already in list");
+                String myString = "Base " +base_in_list + " already in list";
+                byte[] text = myString.getBytes(ISO_8859_1);
+                String value = new String(text, UTF_8);
+                JOptionPane.showMessageDialog(main_frame, value);
             }
             else {
                 JFrame f = new JFrame("InputDialog Example #2");

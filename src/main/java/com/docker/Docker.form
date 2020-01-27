@@ -75,7 +75,7 @@
               <grid row="0" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="2" anchor="8" fill="1" indent="0" use-parent-layout="false"/>
             </constraints>
             <properties>
-              <enabled value="false"/>
+              <enabled value="true"/>
             </properties>
           </component>
           <component id="72930" class="javax.swing.JTextField" binding="add_new_infobase_alias_name">
