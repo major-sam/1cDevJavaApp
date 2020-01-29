@@ -272,6 +272,9 @@ public class Docker {
                 System.out.println("SQLException: "+ex.getMessage());
                 System.out.println("SQLState: "+ex.getSQLState());
                 System.out.println("VendorError: "+ex.getErrorCode());
+                if (ex.getErrorCode()!=0){
+                    DockerSQL.show_message(ex.getMessage());
+                }
             }
             bak_thread_status[0] = true;
         });
@@ -385,6 +388,9 @@ public class Docker {
                 System.out.println("SQLException: "+ex.getMessage());
                 System.out.println("SQLState: "+ex.getSQLState());
                 System.out.println("VendorError: "+ex.getErrorCode());
+                if (ex.getErrorCode()!=0){
+                    DockerSQL.show_message(ex.getMessage());
+                }
             }
             res_thread_status[0] = true;
         });
@@ -537,7 +543,6 @@ public class Docker {
         File rac = new File(rac_exe);
         if (!rac.exists()){
             String src = get_property(default_property,"rac_share",null)[0]+ ver + "\\";
-            //todo check with additional ver
             Path target = Paths.get(path + ver + "\\bin\\");
             Files.walk(Paths.get(src))
                         .filter(Files::isRegularFile)
@@ -1018,7 +1023,7 @@ public class Docker {
                 String myString = "Base " +base_in_list + " already in list";
                 byte[] text = myString.getBytes(ISO_8859_1);
                 String value = new String(text, UTF_8);
-                JOptionPane.showMessageDialog(main_frame, value);
+                JOptionPane.showMessageDialog(main_frame, myString);
             }
             else {
                 JFrame f = new JFrame("InputDialog Example #2");

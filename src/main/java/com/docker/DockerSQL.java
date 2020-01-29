@@ -1,14 +1,17 @@
 package com.docker;
+import javax.swing.*;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
 class DockerSQL {
-
-
     private static String user_name = Docker.user_name;
     private static String user_password = Docker.user_password;
-
+    static void show_message(String message){
+        String warn_message = "<html><font color=#f52248>"+message+"</font>";
+        JOptionPane.showConfirmDialog(null,
+                warn_message, "WARNING", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE);
+    }
     static int get_mssql_progress(String q, String server, String backup_name){
         Connection conn1;
         Statement stmt1;
@@ -102,125 +105,125 @@ class DockerSQL {
         return file_size;
     }
     static String get_mssql_path(String query, String server){
-    Connection conn;
-    Statement stmt;
-    ResultSet rs;
-    String path = null;
-    try {
-        String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+"";
-        conn =
-                DriverManager.getConnection(url);
-        stmt = conn.createStatement();
-        rs = stmt.executeQuery(query);
-        if (stmt.execute(query)) {
-            rs = stmt.getResultSet();
-        }
+        Connection conn;
+        Statement stmt;
+        ResultSet rs;
+        String path = null;
+        try {
+            String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+"";
+            conn =
+                    DriverManager.getConnection(url);
+            stmt = conn.createStatement();
+            rs = stmt.executeQuery(query);
+            if (stmt.execute(query)) {
+                rs = stmt.getResultSet();
+            }
 
-        while (rs.next()){
-            path=rs.getString("a");
+            while (rs.next()){
+                path=rs.getString("a");
+            }
         }
-    }
-    catch (SQLException ex){
-        System.out.println("SQLException: "+ex.getMessage());
-        System.out.println("SQLState: "+ex.getSQLState());
-        System.out.println("VendorError: "+ex.getErrorCode());
-    }
-    return path;
+        catch (SQLException ex){
+            System.out.println("SQLException: "+ex.getMessage());
+            System.out.println("SQLState: "+ex.getSQLState());
+            System.out.println("VendorError: "+ex.getErrorCode());
+        }
+        return path;
     }
     static String[] get_mssql_free_space(String server){
-    Connection conn;
-    Statement stmt;
-    ResultSet rs;
-    StringBuilder disk_space = new StringBuilder();
-    String bak_disk_free = null;
-    String sql_db_disk_free = null;
-    String bak_disk = "K";
-    String sqlDB_disk = "D";
-    String disk_start_style;
-    String disk_end_style;
-    String size_start_style;
-    String size_end_style;
-    String query ="EXEC MASTER..xp_fixeddrives;";
-    try {
-        String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+"";
-        conn = DriverManager.getConnection(url);
-        stmt = conn.createStatement();
-        rs = stmt.executeQuery(query);
-        if (stmt.execute(query)) {
-            rs = stmt.getResultSet();
+        Connection conn;
+        Statement stmt;
+        ResultSet rs;
+        StringBuilder disk_space = new StringBuilder();
+        String bak_disk_free = null;
+        String sql_db_disk_free = null;
+        String bak_disk = "K";
+        String sqlDB_disk = "D";
+        String disk_start_style;
+        String disk_end_style;
+        String size_start_style;
+        String size_end_style;
+        String query ="EXEC MASTER..xp_fixeddrives;";
+        try {
+            String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+"";
+            conn = DriverManager.getConnection(url);
+            stmt = conn.createStatement();
+            rs = stmt.executeQuery(query);
+            if (stmt.execute(query)) {
+                rs = stmt.getResultSet();
+            }
+            boolean is_true = true;
+            while (rs.next()){
+                if (rs.getString("drive").equals(bak_disk)){
+                    disk_start_style = "<font color=#005ef5>";
+                    disk_end_style = "</font>";
+                    bak_disk_free = rs.getString("MB free");
+                }
+                else if ( rs.getString("drive").equals(sqlDB_disk)){
+                    disk_start_style = "<font color=#067a00>";
+                    disk_end_style = "</font>";
+                    sql_db_disk_free = rs.getString("MB free");
+                }
+                else {
+                    disk_start_style = "";
+                    disk_end_style = "";
+                }
+                if (Integer.parseInt(rs.getString("MB free"))< 3000){
+                    size_start_style = "<font color=#f54242>";
+                    size_end_style = "</font>";
+                }
+                else {
+                    size_start_style = "";
+                    size_end_style = "";
+                }
+                if (is_true){
+                    disk_space.append("\n").append(disk_start_style).append(rs.getString("drive"))
+                            .append(disk_end_style).append(":\\ Free: ")
+                            .append(size_start_style).append(rs.getString("MB free")).append(size_end_style)
+                            .append(" MB   |  ");
+                }
+                else {
+                    disk_space.append(disk_start_style).append(rs.getString("drive"))
+                            .append(disk_end_style).append(":\\ Free: ")
+                            .append(size_start_style).append(rs.getString("MB free")).append(size_end_style)
+                            .append(" MB<br/>");
+                }
+                is_true = !is_true;
+            }
         }
-        boolean is_true = true;
-        while (rs.next()){
-            if (rs.getString("drive").equals(bak_disk)){
-                disk_start_style = "<font color=#005ef5>";
-                disk_end_style = "</font>";
-                bak_disk_free = rs.getString("MB free");
-            }
-            else if ( rs.getString("drive").equals(sqlDB_disk)){
-                disk_start_style = "<font color=#067a00>";
-                disk_end_style = "</font>";
-                sql_db_disk_free = rs.getString("MB free");
-            }
-            else {
-                disk_start_style = "";
-                disk_end_style = "";
-            }
-            if (Integer.parseInt(rs.getString("MB free"))< 3000){
-                size_start_style = "<font color=#f54242>";
-                size_end_style = "</font>";
-            }
-            else {
-                size_start_style = "";
-                size_end_style = "";
-            }
-            if (is_true){
-                disk_space.append("\n").append(disk_start_style).append(rs.getString("drive"))
-                        .append(disk_end_style).append(":\\ Free: ")
-                        .append(size_start_style).append(rs.getString("MB free")).append(size_end_style)
-                        .append(" MB   |  ");
-            }
-            else {
-                disk_space.append(disk_start_style).append(rs.getString("drive"))
-                        .append(disk_end_style).append(":\\ Free: ")
-                        .append(size_start_style).append(rs.getString("MB free")).append(size_end_style)
-                        .append(" MB<br/>");
-            }
-            is_true = !is_true;
+        catch (SQLException ex){
+            System.out.println("SQLException: "+ex.getMessage());
+            System.out.println("SQLState: "+ex.getSQLState());
+            System.out.println("VendorError: "+ex.getErrorCode());
         }
-    }
-    catch (SQLException ex){
-        System.out.println("SQLException: "+ex.getMessage());
-        System.out.println("SQLState: "+ex.getSQLState());
-        System.out.println("VendorError: "+ex.getErrorCode());
-    }
-    return new String[]{disk_space.toString(), bak_disk_free, sql_db_disk_free};
+        return new String[]{disk_space.toString(), bak_disk_free, sql_db_disk_free};
     }
     static List get_mssql_db_list(String server){
-    Connection conn;
-    Statement stmt;
-    ResultSet rs;
-    String query="SELECT name FROM master.dbo.sysdatabases  where dbid >4";
-    List<String> work_base = new ArrayList<>();
+        Connection conn;
+        Statement stmt;
+        ResultSet rs;
+        String query="SELECT name FROM master.dbo.sysdatabases  where dbid >4";
+        List<String> work_base = new ArrayList<>();
 
-    try {
-        String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+"";
-        conn = DriverManager.getConnection(url);
-        stmt = conn.createStatement();
-        rs = stmt.executeQuery(query);
-        if (stmt.execute(query)) {
-            rs = stmt.getResultSet();
+        try {
+            String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+"";
+            conn = DriverManager.getConnection(url);
+            stmt = conn.createStatement();
+            rs = stmt.executeQuery(query);
+            if (stmt.execute(query)) {
+                rs = stmt.getResultSet();
+            }
+            while (rs.next()){
+                String dbname=rs.getString("name");
+                work_base.add(dbname);
+            }
         }
-        while (rs.next()){
-            String dbname=rs.getString("name");
-            work_base.add(dbname);
+        catch (SQLException ex){
+            System.out.println("SQLException: "+ex.getMessage());
+            System.out.println("SQLState: "+ex.getSQLState());
+            System.out.println("VendorError: "+ex.getErrorCode());
         }
-    }
-    catch (SQLException ex){
-        System.out.println("SQLException: "+ex.getMessage());
-        System.out.println("SQLState: "+ex.getSQLState());
-        System.out.println("VendorError: "+ex.getErrorCode());
-    }
-    return work_base;
+        return work_base;
     }
     static void remove_backup(String server,String backup_name ){
         Connection conn1;
@@ -251,6 +254,8 @@ class DockerSQL {
         Statement stmt1;
         String query = "EXEC msdb.dbo.sp_delete_database_backuphistory @database_name = N'"+ db_name +"'\n" +
                 "USE [master]\n" +
+                "ALTER DATABASE ["+db_name+"] SET  SINGLE_USER WITH ROLLBACK IMMEDIATE\n" +
+                "USE [master]\n" +
                 "DROP DATABASE ["+db_name+"];";
         try {
             String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+"";
@@ -262,7 +267,9 @@ class DockerSQL {
             System.out.println("SQLException: "+ex.getMessage());
             System.out.println("SQLState: "+ex.getSQLState());
             System.out.println("VendorError: "+ex.getErrorCode());
+            if (ex.getErrorCode()!=0){
+                show_message(ex.getMessage());
+            }
         }
     }
-
 }
