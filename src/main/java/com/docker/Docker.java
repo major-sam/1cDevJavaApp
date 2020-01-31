@@ -7,6 +7,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.net.InetAddress;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import static java.nio.charset.StandardCharsets.*;
 import java.nio.file.*;
@@ -927,8 +928,14 @@ public class Docker {
         run1cButton.addActionListener(actionEvent -> {
             String infobase =(String) target_list.getSelectedValue();
             String version = (String) server_1c_ver.getSelectedItem();
-            String p =  server_1c_ver_with_port[0].split(":")[1];
-            String port = p.substring(0, p.length() -1)+"1";
+            String rac_port = "";
+            for (String v : server_1c_ver_with_port) {
+                String[] v1 = v.split(":");
+                if (v1[0].equals(version)) {
+                    rac_port = v1[1];
+                }
+            }
+            String port =rac_port.substring(0, rac_port.length() -1)+"1";
             String bin = path_to_1c + version + path_1c_exe;
             final String command ="\""+ bin +"\" ENTERPRISE /S\""+dev_server+":"+port+"\\"+infobase + "\"";
             Thread run1c = new Thread(() -> {
@@ -944,8 +951,14 @@ public class Docker {
         run1cDesignerButton.addActionListener(actionEvent -> {
             String infobase =(String) target_list.getSelectedValue();
             String version = (String) server_1c_ver.getSelectedItem();
-            String p =  server_1c_ver_with_port[0].split(":")[1];
-            String port = p.substring(0, p.length() -1)+"1";
+            String rac_port = "";
+            for (String v : server_1c_ver_with_port) {
+                String[] v1 = v.split(":");
+                if (v1[0].equals(version)) {
+                    rac_port = v1[1];
+                }
+            }
+            String port =rac_port.substring(0, rac_port.length() -1)+"1";
             String bin = path_to_1c + version + path_1c_exe;
             final String command ="\""+ bin +"\" DESIGNER /S\""+dev_server+":"+port+"\\"+infobase + "\"";
             Thread run1c = new Thread(() -> {
@@ -973,8 +986,14 @@ public class Docker {
         run1cWithParamsButton.addActionListener(actionEvent -> {
             String infobase =(String) target_list.getSelectedValue();
             String version = (String) server_1c_ver.getSelectedItem();
-            String p =  server_1c_ver_with_port[0].split(":")[1];
-            String port = p.substring(0, p.length() -1)+"1";
+            String rac_port = "";
+            for (String v : server_1c_ver_with_port) {
+                String[] v1 = v.split(":");
+                if (v1[0].equals(version)) {
+                    rac_port = v1[1];
+                }
+            }
+            String port =rac_port.substring(0, rac_port.length() -1)+"1";
             String bin = path_to_1c + version + path_1c_exe;
             String params = run_1c_custom_params.getText();
             final String command ="\""+ bin +"\" ENTERPRISE /S\""+dev_server+":"+port+"\\"+infobase + "\" "
@@ -1020,19 +1039,19 @@ public class Docker {
                 e.printStackTrace();
             }
             if (base_in_list != null){
-                String myString = "Base " +base_in_list + " already in list";
-                byte[] text = myString.getBytes(ISO_8859_1);
-                String value = new String(text, UTF_8);
-                JOptionPane.showMessageDialog(main_frame, myString);
+                String base_utf8 = new String(base_in_list.getBytes(Charset.defaultCharset()), UTF_8);
+                String value = "Base " + base_utf8+" already in list";
+                JOptionPane.showMessageDialog(main_frame, value);
             }
             else {
                 JFrame f = new JFrame("InputDialog Example #2");
                 String base_name = JOptionPane.showInputDialog(
                         f,
-                        "Введите имя базы",
+                        "Введите имя базы        "+ Charset.defaultCharset().displayName(),
                         "Имя базы",
                         JOptionPane.QUESTION_MESSAGE);
-                if (base_name != null){
+                //String base_name = new String(b_n.getBytes(Charset.defaultCharset()), UTF_8);
+                if (!base_name.equals("")){
                     String ver =(String) server_1c_ver.getSelectedItem();
                     try {
                         Docker1C.add_infobase_to_list(dev_server, ver, infobase, base_name, all_user_list);
