@@ -1,32 +1,35 @@
 package com.docker;
 
 import org.jasypt.util.text.StrongTextEncryptor;
+
 import javax.swing.*;
-import javax.swing.event.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.filechooser.FileSystemView;
+import javax.swing.filechooser.FileView;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.ItemEvent;
 import java.io.*;
 import java.net.InetAddress;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import static java.nio.charset.StandardCharsets.*;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.sql.*;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import javax.swing.DefaultListModel;
-import javax.swing.JFrame;
-import javax.swing.JList;
-import javax.swing.JScrollPane;
-import javax.swing.JTextField;
-import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.filechooser.FileSystemView;
-import javax.swing.filechooser.FileView;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class Docker {
     private JButton run_task_button, quit, useMyBackupButton, run1cButton, run1cDesignerButton, getDtButton,
@@ -50,6 +53,19 @@ public class Docker {
     static String default_property = currentRelativePath.toAbsolutePath().toString();
     static String path_1c_exe = get_property(default_property,"path_1c_exe", null)[0];
     static String path_rac_exe = get_property(default_property,"path_rac_exe", null)[0];
+
+    private void enable_spinner() {
+        spinner.setEnabled(true);
+        ImageIcon icon = new ImageIcon("conf/spinner.gif");
+        Image img = icon.getImage();
+        Image image = img.getScaledInstance(54, 54, Image.SCALE_REPLICATE);
+        icon = new ImageIcon(image);
+        spinner.setIcon(icon);
+    }
+    private void disable_spinner(){
+        spinner.setIcon(null);
+        spinner.setEnabled(false);
+    }
 
     private void set_access(String basename){
         String admin_account = get_property(default_property,"admin_account",null)[0];
@@ -253,6 +269,7 @@ public class Docker {
         progressbar2.setMinimum(0);
         progressbar2.setMaximum(100);
         progressbar2.setValue(0);
+        enable_spinner();
         final boolean[] bak_thread_status = {false};
         Thread backup_db = new Thread(() -> {
             try {
@@ -310,6 +327,7 @@ public class Docker {
                     }
                 }
                 Thread.currentThread().interrupt();
+                disable_spinner();
                 scheduled_bak_watch.shutdown();
 
             }
@@ -558,6 +576,13 @@ public class Docker {
         }
     }
     private Docker() throws IOException {
+        boolean debug = get_property(default_property,"debug",null)[0].equals("true");
+        if (debug) {
+            new FileOutputStream("C:\\docker\\debug.log", true).close();
+            PrintStream debug_file = new PrintStream(new BufferedOutputStream(new FileOutputStream("C:\\docker\\debug.log", true)), true);
+            System.setErr(debug_file);
+            System.setOut(debug_file);
+        }
         String crypt_name = get_property(default_property,"user",null)[0];
         String crypt_password = get_property(default_property,"password",null)[0];
         check_password_prop(crypt_name,crypt_password);
@@ -638,6 +663,7 @@ public class Docker {
         frame.setVisible(true);
 // listeners
         server_list.addItemListener(itemEvent -> {
+            enable_spinner();
             if (itemEvent.getStateChange() == ItemEvent.SELECTED){
                 selected_server[0] = (String) itemEvent.getItem();
             }
@@ -652,6 +678,7 @@ public class Docker {
             source_buffer = get_items_for_filter(sdb);
             source_base_name[0] =(String) source_list.getSelectedValue();
             source_list.setSelectedIndex(0);
+            disable_spinner();
         });
         String free_space_on_disk = DockerSQL.get_mssql_free_space(dev_server)[0];
         final int sql_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[2]);
@@ -659,6 +686,7 @@ public class Docker {
         wmi_space.setText("<html>"+free_space_on_disk+"<html>");
         final String[] warn_message = new String[1];
         run_task_button.addActionListener(actionEvent -> {
+            enable_spinner();
             try {
                 check_rac(path_to_1c, (String) server_1c_ver.getSelectedItem());
             } catch (IOException e) {
@@ -726,8 +754,10 @@ public class Docker {
                 backup_db(selected_server[0], source_base_name[0], backup_name, target_base_name[0]
                         ,dev_server, backup_dir, server_1c, path_to_1c);
             }
+            disable_spinner();
         });
         removeDbButton.addActionListener(actionEvent -> {
+            enable_spinner();
             int approve;
             try {
                 check_rac(path_to_1c, (String) server_1c_ver.getSelectedItem());
@@ -762,6 +792,7 @@ public class Docker {
                 target_buffer = get_items_for_filter(tdb);
                 target_list.setModel(tdb);
             }
+            disable_spinner();
         });
         quit.addActionListener(actionEvent -> System.exit(0));
         source_list.addListSelectionListener(e -> {
@@ -798,6 +829,7 @@ public class Docker {
             @Override public void changedUpdate(DocumentEvent e) { filter();}
 
             private void filter() {
+                enable_spinner();
                 DefaultListModel model = (DefaultListModel) source_list.getModel();
                 model.clear();
                 String s = source_search.getText();
@@ -807,6 +839,7 @@ public class Docker {
                     }
                 }
                 source_list.setModel(model);
+                disable_spinner();
             }
         });
         target_search.getDocument().addDocumentListener(new DocumentListener(){
@@ -814,6 +847,7 @@ public class Docker {
             @Override public void removeUpdate(DocumentEvent e) { filter(); }
             @Override public void changedUpdate(DocumentEvent e) { filter();}
             private void filter() {
+                enable_spinner();
                 DefaultListModel model1 = (DefaultListModel) target_list.getModel();
                 model1.clear();
                 String s = target_search.getText();
@@ -831,10 +865,11 @@ public class Docker {
                 }
                 target_list.setModel(model1);
                 target_list.setCellRenderer(new ListColorRenderer());
-
+                disable_spinner();
             }
         });
         dev_base_renew.addActionListener(actionEvent -> {
+            enable_spinner();
             List<String> renewed_list = DockerSQL.get_mssql_db_list(dev_server);
             tdb.clear();
             for (String base : renewed_list){
@@ -843,6 +878,7 @@ public class Docker {
             target_list.setModel(tdb);
             target_list.setSelectedIndex(0);
             target_list.setCellRenderer(new ListColorRenderer());
+            disable_spinner();
         });
         dev_prod_switch.addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED){
@@ -1047,7 +1083,7 @@ public class Docker {
                 JFrame f = new JFrame("InputDialog Example #2");
                 String base_name = JOptionPane.showInputDialog(
                         f,
-                        "Введите имя базы        "+ Charset.defaultCharset().displayName(),
+                        "Введите имя базы        ",
                         "Имя базы",
                         JOptionPane.QUESTION_MESSAGE);
                 //String base_name = new String(b_n.getBytes(Charset.defaultCharset()), UTF_8);
