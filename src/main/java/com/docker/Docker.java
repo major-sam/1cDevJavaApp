@@ -45,8 +45,7 @@ public class Docker {
     public  JComboBox server_list, server_1c_ver, dev_prod_switch;
     private JCheckBox my_bases_only_check_box, create_new_db_check_box;
     private JLabel spinner;
-    private List source_buffer;
-    private List target_buffer;
+    private List source_buffer, target_buffer;
     static String user_name, user_password;
     private DefaultListModel sdb = new DefaultListModel() ,  tdb = new DefaultListModel();
     private static Path currentRelativePath = Paths.get("conf/default.properties");
@@ -201,6 +200,7 @@ public class Docker {
         addToAllUserButton.setEnabled(state);
         removeFromAllUserButton.setEnabled(state);
         if(state){
+            create_new_db_check_box.setSelected(false);
             add_new_infobase_alias_name.setText("");
             add_new_infobase_comment.setText("");
         }
@@ -432,7 +432,6 @@ public class Docker {
                 bar.setValue(100);
                 DockerSQL.remove_backup(source_server,backup_name);
                 enable_ui(true);
-                create_new_db_check_box.setSelected(false);
                 scheduled_res_watch.shutdown();
             }
             else  {
@@ -681,8 +680,8 @@ public class Docker {
             disable_spinner();
         });
         String free_space_on_disk = DockerSQL.get_mssql_free_space(dev_server)[0];
-        final int sql_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[2]);
-        final int bak_disk =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[1]);
+        final int sql_disk_free_space =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[2]);
+        final int bak_disk_free_space =Integer.parseInt(DockerSQL.get_mssql_free_space(dev_server)[1]);
         wmi_space.setText("<html>"+free_space_on_disk+"<html>");
         final String[] warn_message = new String[1];
         run_task_button.addActionListener(actionEvent -> {
@@ -697,15 +696,18 @@ public class Docker {
             final String date = dateFormat.format(d);
             source_base_name[0] = (String) source_list.getSelectedValue();
             int extra = Integer.parseInt(DockerSQL.get_mssql_db_size((String)source_list.getSelectedValue(),(String)server_list.getSelectedItem()));
+            if (!create_new_db_check_box.isSelected()){
+                extra = extra - Integer.parseInt(DockerSQL.get_mssql_db_size((String)target_list.getSelectedValue(), dev_server));
+            }
             int approve = 1;
             String alias = add_new_infobase_alias_name.getText();
             String comment = add_new_infobase_comment.getText();
-            if (sql_disk<extra){
+            if (sql_disk_free_space<extra){
                 warn_message[0] = "<html><font color=#f54242> НЕДОСТАТОЧНО МЕСТА НА ДИСКЕ БД</font>";
                  JOptionPane.showConfirmDialog(null,
                          warn_message[0], "WARNING", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE);
             }
-            else if (bak_disk<extra){
+            else if (bak_disk_free_space<extra){
                 warn_message[0] = "<html><font color=#f54242> НЕДОСТАТОЧНО МЕСТА НА ДИСКЕ БЭКАПОВ</font>";
                 JOptionPane.showConfirmDialog(null,
                         warn_message[0], "WARNING", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE);
@@ -737,8 +739,8 @@ public class Docker {
                             +"\nИЗ: "+source_base_name[0]
                             +additional_string
                             +"\nДополнительное место: "+extra+" MB"
-                            +"\nСвободно места на диске бд: "+sql_disk+" MB"
-                            +"\nСвободно места на диске бэкапов: "+bak_disk+" MB"
+                            +"\nСвободно места на диске бд: "+sql_disk_free_space+" MB"
+                            +"\nСвободно места на диске бэкапов: "+bak_disk_free_space+" MB"
                             +"\n",
                         title+" Подтверждение"
                     , JOptionPane.YES_NO_OPTION);
@@ -754,6 +756,8 @@ public class Docker {
                 backup_db(selected_server[0], source_base_name[0], backup_name, target_base_name[0]
                         ,dev_server, backup_dir, server_1c, path_to_1c);
             }
+            my_bases_only_check_box.setSelected(false);
+            target_search.setText(null);
             disable_spinner();
         });
         removeDbButton.addActionListener(actionEvent -> {
@@ -819,7 +823,7 @@ public class Docker {
                 target_search.setText(System.getProperty("user.name"));
             }
             else {
-                target_search.setText("");
+                target_search.setText(null);
             }
             SwingUtilities.updateComponentTreeUI(main_frame);
         });
@@ -851,16 +855,16 @@ public class Docker {
                 DefaultListModel model1 = (DefaultListModel) target_list.getModel();
                 model1.clear();
                 String s = target_search.getText();
-                if (!s.equals("")) {
+                if (s == null) {
                     for (Object o : target_buffer) {
-                        if (o.toString().contains(s)) {
-                            model1.addElement(o.toString());
-                        }
+                        model1.addElement(o.toString());
                     }
                 }
                 else {
                     for (Object o : target_buffer) {
-                        model1.addElement(o.toString());
+                        if (o.toString().contains(s)) {
+                            model1.addElement(o.toString());
+                        }
                     }
                 }
                 target_list.setModel(model1);
