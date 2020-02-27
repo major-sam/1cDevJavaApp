@@ -31,6 +31,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+@SuppressWarnings("ALL")
 public class Docker {
     private JButton run_task_button, quit, useMyBackupButton, run1cButton, run1cDesignerButton, getDtButton,
             getCfButton, run1cAdminConsoleButton, run1cWithParamsButton, getSqlBakButton, removeDbButton, openLogsButton
@@ -46,7 +47,7 @@ public class Docker {
     private JCheckBox my_bases_only_check_box, create_new_db_check_box;
     private JLabel spinner;
     private List source_buffer, target_buffer;
-    static String user_name, user_password;
+    static String user_name, user_password, domain;
     private DefaultListModel sdb = new DefaultListModel() ,  tdb = new DefaultListModel();
     private static Path currentRelativePath = Paths.get("conf/default.properties");
     static String default_property = currentRelativePath.toAbsolutePath().toString();
@@ -278,7 +279,7 @@ public class Docker {
                 String query="SET NOCOUNT ON "+
                         "BACKUP DATABASE ["+source_base_name+"] TO  DISK = N'"+backup_name+".bak' WITH RETAINDAYS = 3, NOFORMAT, INIT,  NAME = N'"+
                         source_base_name+"-Full Database Backup', SKIP, NOREWIND, NOUNLOAD,  STATS = 10";
-                String url ="jdbc:sqlserver://"+selected_server+";user="+user_name+";password="+user_password+"";
+                String url ="jdbc:jtds:sqlserver://"+selected_server+";user="+user_name+";password="+user_password+domain+"";
                 conn = DriverManager.getConnection(url);
                 stmt = conn.createStatement();
                 stmt.executeQuery(query);
@@ -357,7 +358,7 @@ public class Docker {
                 Connection conn;
                 Statement stmt;
                 ResultSet rs;
-                String url ="jdbc:sqlserver://"+target_server+";user="+user_name+";password="+user_password+"";
+                String url ="jdbc:jtds:sqlserver://"+target_server+";user="+user_name+";password="+user_password+domain+"";
                 conn = DriverManager.getConnection(url);
                 stmt = conn.createStatement();
                 String query= "RESTORE FILELISTONLY FROM DISK='"+ finalPath +backup_name+".bak' ";
@@ -458,15 +459,20 @@ public class Docker {
                 labels.add(new JLabel("Login:", SwingConstants.RIGHT));
                 labels.add(new JLabel("Pass:", SwingConstants.RIGHT));
                 labels.add(new JLabel("Confirm:", SwingConstants.RIGHT));
+                labels.add(new JLabel("Domain:", SwingConstants.RIGHT));
                 panel.add(labels, BorderLayout.WEST);
                 JPanel fields = new JPanel(new GridLayout(0, 1, 2, 2));
                 JTextField username = new JTextField(textEncryptor.decrypt(crypt_name));
                 JPasswordField pass = new JPasswordField(10);
                 JPasswordField pass_confirm = new JPasswordField(10);
+                JTextField domain = new JTextField("");
                 fields.add(username);
                 fields.add(pass);
                 fields.add(pass_confirm);
+                fields.add(domain);
+                JCheckBox checkbox = new JCheckBox("Domain user?");
                 panel.add(fields, BorderLayout.CENTER);
+                panel.add(checkbox,BorderLayout.SOUTH);
                 String[] options = new String[]{"OK", "Cancel"};
                 int option = JOptionPane.showOptionDialog(null, panel, "Enter Credentials For MSSQL Server",
                         JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE,
@@ -488,6 +494,12 @@ public class Docker {
                         crypt_password = textEncryptor.encrypt(password);
                         prop.setProperty("user",crypt_name);
                         prop.setProperty("password",crypt_password);
+                        if (checkbox.isSelected()){
+                            prop.setProperty("domain", domain.getText());
+                        }
+                        else {
+                            prop.setProperty("domain", "");
+                        }
                         String conf_path = ".\\conf\\default.properties";
                         prop.store(new FileOutputStream(conf_path,true), "\nremove lines if password changes or wrong");
                         break;
@@ -515,7 +527,9 @@ public class Docker {
                 String query="SET NOCOUNT ON "+
                         "BACKUP DATABASE ["+source_base_name+"] TO  DISK = N'"+backup_name+".bak' WITH RETAINDAYS = 3, NOFORMAT, INIT,  NAME = N'"+
                         source_base_name+"-Full Database Backup', SKIP, NOREWIND, NOUNLOAD,  STATS = 10";
-                String url ="jdbc:sqlserver://"+selected_server+";user="+user_name+";password="+user_password+"";
+
+
+                String url ="jdbc:jtds:sqlserver://"+selected_server+";user="+user_name+";password="+user_password+domain+"";
                 conn = DriverManager.getConnection(url);
                 stmt = conn.createStatement();
                 stmt.executeQuery(query);
@@ -589,6 +603,13 @@ public class Docker {
         textEncryptor.setPassword("$ecurePWD");
         user_name = textEncryptor.decrypt(crypt_name);
         user_password = textEncryptor.decrypt(crypt_password);
+        String domain_string = get_property(default_property, "domain", null)[0];
+        if (!domain_string.equals("")){
+            domain = ";domain="+domain_string+"";
+        }
+        else {
+            domain = domain_string;
+        }
         String[] mssql_servers = get_property(default_property,"servers",",");
         final String dev_server =  get_property(default_property,"dev_server",null)[0];
         final String backup_dir =  get_property(default_property,"bak_dir_name",null)[0];

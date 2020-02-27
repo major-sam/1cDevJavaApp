@@ -158,7 +158,6 @@ class Docker1C {
         Files.write(path, Collections.singletonList(infobase_settings), StandardCharsets.UTF_8,
                 Files.exists(path) ? StandardOpenOption.APPEND : StandardOpenOption.CREATE);
     }
-
     static void remove_infobase_from_list(String file,String infobase) throws IOException {
         BufferedReader in = new BufferedReader(new FileReader(file)) ;
         String line_in;
