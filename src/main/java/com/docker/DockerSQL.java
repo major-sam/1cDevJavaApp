@@ -27,7 +27,7 @@ class DockerSQL {
                 "WHERE command like "+q;
         int progress=0;
         try {
-            String url ="jdbc:jtds:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
+            String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
             conn1 = DriverManager.getConnection(url);
             stmt1 = conn1.createStatement();
             rs1 = stmt1.executeQuery(query);
@@ -53,7 +53,7 @@ class DockerSQL {
         ResultSet rs;
         String file_creation_date = null;
         try {
-            String url = "jdbc:jtds:sqlserver://" + server + ";user=" + user_name + ";password=" + user_password + domain+"";
+            String url = "jdbc:sqlserver://" + server + ";user=" + user_name + ";password=" + user_password + domain+"";
             conn = DriverManager.getConnection(url);
             stmt = conn.createStatement();
             String query = "SELECT create_date\n" +
@@ -79,7 +79,7 @@ class DockerSQL {
         ResultSet rs;
         String file_size = null;
         try {
-            String url ="jdbc:jtds:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
+            String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
             conn = DriverManager.getConnection(url);
             stmt = conn.createStatement();
             String query="SELECT\n"+
@@ -111,7 +111,7 @@ class DockerSQL {
         ResultSet rs;
         String path = null;
         try {
-            String url ="jdbc:jtds:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
+            String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
             conn =
                     DriverManager.getConnection(url);
             stmt = conn.createStatement();
@@ -146,7 +146,7 @@ class DockerSQL {
         String size_end_style;
         String query ="EXEC MASTER..xp_fixeddrives;";
         try {
-            String url ="jdbc:jtds:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
+            String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
             conn = DriverManager.getConnection(url);
             stmt = conn.createStatement();
             rs = stmt.executeQuery(query);
@@ -199,7 +199,7 @@ class DockerSQL {
         }
         return new String[]{disk_space.toString(), bak_disk_free, sql_db_disk_free};
     }
-    static List get_mssql_db_list(String server){
+    static List<String> get_mssql_db_list(String server){
         Connection conn;
         Statement stmt;
         ResultSet rs;
@@ -207,7 +207,7 @@ class DockerSQL {
         List<String> work_base = new ArrayList<>();
 
         try {
-            String url ="jdbc:jtds:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
+            String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
             conn = DriverManager.getConnection(url);
             stmt = conn.createStatement();
             rs = stmt.executeQuery(query);
@@ -239,7 +239,7 @@ class DockerSQL {
                 "set @bak = @path +'\\"+backup_name+".bak'\n" +
                 "EXECUTE master.dbo.xp_delete_file 0,@bak";
         try {
-            String url ="jdbc:jtds:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
+            String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
             conn1 = DriverManager.getConnection(url);
             stmt1 = conn1.createStatement();
             stmt1.executeQuery(query);
@@ -259,7 +259,7 @@ class DockerSQL {
                 "USE [master]\n" +
                 "DROP DATABASE ["+db_name+"];";
         try {
-            String url ="jdbc:jtds:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
+            String url ="jdbc:sqlserver://"+server+";user="+user_name+";password="+user_password+domain+"";
             conn1 = DriverManager.getConnection(url);
             stmt1 = conn1.createStatement();
             stmt1.executeQuery(query);

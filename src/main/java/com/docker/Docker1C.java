@@ -115,13 +115,13 @@ class Docker1C {
         String cluster_id = get_cluster_id(rac_bin,rac_service);
         String infobase_id = get_infobase_id(base_name,rac_service,rac_bin,cluster_id);
         String command = "\""+ rac_bin +"\"" + " "+ rac_service+" infobase --cluster="+cluster_id+ " drop --infobase="+infobase_id;
-        ArrayList lines = run_shell_command(command);
+        ArrayList<String> lines = run_shell_command(command);
         for (Object line : lines){
             System.out.println(line.toString());
         }
         DockerSQL.remove_db(server_1c,base_name);
         String[] share_for_1c_lists= Docker.get_property(Docker.default_property, "share_for_1c_lists", null);
-        String path = Paths.get(share_for_1c_lists[0]).toString() + System.getProperty("user.name") + ".v8i";
+        String path = Paths.get(share_for_1c_lists[0]).toString() + System.getProperty("user.name").toLowerCase() + ".v8i";
         remove_infobase_from_list(path, base_name);
 
     }

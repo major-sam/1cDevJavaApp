@@ -69,8 +69,8 @@ public class Docker {
 
     private void set_access(String basename){
         String admin_account = get_property(default_property,"admin_account",null)[0];
-        boolean test_admin = System.getProperty("user.name").equals(admin_account);
-        boolean test_owner = basename.startsWith(System.getProperty("user.name"));
+        boolean test_admin = System.getProperty("user.name").toLowerCase().equals(admin_account);
+        boolean test_owner = basename.toLowerCase().startsWith(System.getProperty("user.name").toLowerCase());
         if (!test_admin & !test_owner){
             removeDbButton.setEnabled(false);
             run_task_button.setEnabled(false);
@@ -238,7 +238,7 @@ public class Docker {
         String tab_sep = "#######";
         String line_sep = ("=============================================================================\r\n");
         String line =date +"\r\n"
-                +tab_sep+String.format("%-20s","User:"+System.getProperty("user.name")+" Host:"+InetAddress.getLocalHost().getHostName() +" Action: ");
+                +tab_sep+String.format("%-20s","User:"+System.getProperty("user.name").toLowerCase()+" Host:"+InetAddress.getLocalHost().getHostName() +" Action: ");
         if (remove_state){
             line = line +"REMOVE"+ "\r\n"
                     + tab_sep + "REMOVED DB:" + target_base_name + "\r\n" +
@@ -279,7 +279,7 @@ public class Docker {
                 String query="SET NOCOUNT ON "+
                         "BACKUP DATABASE ["+source_base_name+"] TO  DISK = N'"+backup_name+".bak' WITH RETAINDAYS = 3, NOFORMAT, INIT,  NAME = N'"+
                         source_base_name+"-Full Database Backup', SKIP, NOREWIND, NOUNLOAD,  STATS = 10";
-                String url ="jdbc:jtds:sqlserver://"+selected_server+";user="+user_name+";password="+user_password+domain+"";
+                String url ="jdbc:sqlserver://"+selected_server+";user="+user_name+";password="+user_password+domain+"";
                 conn = DriverManager.getConnection(url);
                 stmt = conn.createStatement();
                 stmt.executeQuery(query);
@@ -311,7 +311,7 @@ public class Docker {
                     try {
                         String infobase_name = add_new_infobase_alias_name.getText();
                         Docker1C.create_1c_base(server_1c, dev_server, ver, backup_name,path_to_1c, description);
-                        Docker1C.add_infobase_to_list(server_1c,ver,backup_name,infobase_name, System.getProperty("user.name"));
+                        Docker1C.add_infobase_to_list(server_1c,ver,backup_name,infobase_name, System.getProperty("user.name").toLowerCase());
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -321,7 +321,7 @@ public class Docker {
                     restore_db(selected_server, dev_server, target_base_name, backup_name, backup_dir,progressbar2);
                     try {
                         description ="Обновлено базой "+ backup_name+" пользователем "+
-                                System.getProperty("user.name")+","+dateFormat.format(updated_description);
+                                System.getProperty("user.name").toLowerCase()+","+dateFormat.format(updated_description);
                         Docker1C.set_infobase_description(server_1c,ver,path_to_1c,target_base_name,description);
                     } catch (IOException e) {
                         e.printStackTrace();
@@ -358,7 +358,7 @@ public class Docker {
                 Connection conn;
                 Statement stmt;
                 ResultSet rs;
-                String url ="jdbc:jtds:sqlserver://"+target_server+";user="+user_name+";password="+user_password+domain+"";
+                String url ="jdbc:sqlserver://"+target_server+";user="+user_name+";password="+user_password+domain+"";
                 conn = DriverManager.getConnection(url);
                 stmt = conn.createStatement();
                 String query= "RESTORE FILELISTONLY FROM DISK='"+ finalPath +backup_name+".bak' ";
@@ -527,9 +527,7 @@ public class Docker {
                 String query="SET NOCOUNT ON "+
                         "BACKUP DATABASE ["+source_base_name+"] TO  DISK = N'"+backup_name+".bak' WITH RETAINDAYS = 3, NOFORMAT, INIT,  NAME = N'"+
                         source_base_name+"-Full Database Backup', SKIP, NOREWIND, NOUNLOAD,  STATS = 10";
-
-
-                String url ="jdbc:jtds:sqlserver://"+selected_server+";user="+user_name+";password="+user_password+domain+"";
+                String url ="jdbc:sqlserver://"+selected_server+";user="+user_name+";password="+user_password+domain+"";
                 conn = DriverManager.getConnection(url);
                 stmt = conn.createStatement();
                 stmt.executeQuery(query);
@@ -767,7 +765,7 @@ public class Docker {
                     , JOptionPane.YES_NO_OPTION);
             }
             if(approve == 0){
-                final String backup_name = System.getProperty("user.name")+"_"+source_base_name[0]+"_"+date;
+                final String backup_name = System.getProperty("user.name").toLowerCase()+"_"+source_base_name[0]+"_"+date;
                 try {
                     wright_log(date, selected_server[0],source_base_name[0],target_base_name[0],backup_name,
                             false,(String) server_1c_ver.getSelectedItem());
@@ -841,7 +839,7 @@ public class Docker {
                 enable_ui_target(create_new_db_check_box.isSelected()));
         my_bases_only_check_box.addItemListener(e -> {
             if(e.getStateChange() == ItemEvent.SELECTED){
-                target_search.setText(System.getProperty("user.name"));
+                target_search.setText(System.getProperty("user.name").toLowerCase());
             }
             else {
                 target_search.setText(null);
