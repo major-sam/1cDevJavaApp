@@ -5,9 +5,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 class DockerSQL {
-    private static String user_name = Docker.user_name;
-    private static String user_password = Docker.user_password;
-    private static String domain = Docker.domain;
+    private static final String user_name = Docker.user_name;
+    private static final String user_password = Docker.user_password;
+    private static final String domain = Docker.domain;
     static void show_message(String message){
         String warn_message = "<html><font color=#f52248>"+message+"</font>";
         JOptionPane.showConfirmDialog(null,
@@ -250,7 +250,7 @@ class DockerSQL {
             System.out.println("VendorError: "+ex.getErrorCode());
         }
     }
-    static void remove_db(String server, String db_name){
+    static Boolean remove_db(String server, String db_name){
         Connection conn1;
         Statement stmt1;
         String query = "EXEC msdb.dbo.sp_delete_database_backuphistory @database_name = N'"+ db_name +"'\n" +
@@ -272,5 +272,6 @@ class DockerSQL {
                 show_message(ex.getMessage());
             }
         }
+        return true;
     }
 }

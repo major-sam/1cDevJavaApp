@@ -3,9 +3,7 @@ package com.docker;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.TimeZone;
+import java.util.*;
 
 class ListColorRenderer extends DefaultListCellRenderer {
     public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected, boolean cellHasFocus ) {
@@ -30,10 +28,27 @@ class ListColorRenderer extends DefaultListCellRenderer {
             c.setBackground(Color.GREEN);
         }
         else{
-            c.setBackground( Color.PINK );
+            c.setBackground(Color.PINK);
         }
         if(isSelected){
-            c.setBackground( Color.LIGHT_GRAY);
+            c.setBackground(Color.LIGHT_GRAY);
+        }
+        return c;
+    }
+}
+class ListColorRendererByComment extends DefaultListCellRenderer {
+    public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected, boolean cellHasFocus ) {
+        Component c = super.getListCellRendererComponent( list, value, index, isSelected, cellHasFocus );
+        String db_name = value.toString();
+        Map<String, String> info = DockerReports.getInfo();
+        if (info.get(db_name) == null){
+            c.setBackground( Color.YELLOW );
+        }
+        else {
+            c.setBackground(Color.GREEN);
+        }
+        if(isSelected){
+            c.setBackground(Color.LIGHT_GRAY);
         }
         return c;
     }

@@ -9,9 +9,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.filechooser.FileSystemView;
 import javax.swing.filechooser.FileView;
 import java.awt.*;
-import java.awt.event.FocusAdapter;
-import java.awt.event.FocusEvent;
-import java.awt.event.ItemEvent;
+import java.awt.event.*;
 import java.io.*;
 import java.net.InetAddress;
 import java.nio.charset.Charset;
@@ -21,11 +19,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.sql.*;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.Date;
 import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -232,8 +230,8 @@ public class Docker {
             quit.setEnabled(true);
         }
     }
-    private void wright_log(String date, String selected_server, String source_base_name,
-                            String target_base_name,String new_base, Boolean remove_state , String ver) throws IOException {
+    void wright_log(String date, String selected_server, String source_base_name,
+                    String target_base_name, String new_base, Boolean remove_state, String ver) throws IOException {
         String log_file_path = get_property(default_property,"log_file",null)[0].replace("\\log","\\log$");
         String tab_sep = "#######";
         String line_sep = ("=============================================================================\r\n");
@@ -449,7 +447,7 @@ public class Docker {
         }
         return list;
     }
-    private void check_password_prop(String crypt_name, String crypt_password) throws IOException {
+    static void check_password_prop(String crypt_name, String crypt_password) throws IOException {
         StrongTextEncryptor textEncryptor = new StrongTextEncryptor();
         textEncryptor.setPassword("$ecurePWD");
         while (true) {
@@ -499,9 +497,9 @@ public class Docker {
                         }
                         else {
                             prop.setProperty("domain", "");
-                        }
+                        }//TODO conf_path check
                         String conf_path = ".\\conf\\default.properties";
-                        prop.store(new FileOutputStream(conf_path,true), "\nremove lines if password changes or wrong");
+                        prop.store(new FileOutputStream(default_property,true), "\nremove lines if password changes or wrong");
                         break;
                     }
                 }
@@ -560,7 +558,7 @@ public class Docker {
             }
         },0,2, TimeUnit.SECONDS);
     }
-    private void copy(Path source, Path dest) {
+    private static void copy(Path source, Path dest) {
         try {
             if (!Files.exists(dest)){
                 Files.copy(source, dest);}
@@ -568,7 +566,7 @@ public class Docker {
             throw new RuntimeException(e.getMessage(), e);
         }
     }
-    private void check_rac(String path,String ver) throws IOException {
+    static void check_rac(String path, String ver) throws IOException {
         String rac_exe = path+ver+path_rac_exe;
         File rac = new File(rac_exe);
         if (!rac.exists()){
@@ -857,7 +855,7 @@ public class Docker {
                 model.clear();
                 String s = source_search.getText();
                 for (Object o : source_buffer) {
-                    if (o.toString().contains(s)) {
+                    if (o.toString().toLowerCase().contains(s)) {
                         model.addElement(o.toString());
                     }
                 }
@@ -881,7 +879,7 @@ public class Docker {
                 }
                 else {
                     for (Object o : target_buffer) {
-                        if (o.toString().contains(s)) {
+                        if (o.toString().toLowerCase().contains(s)) {
                             model1.addElement(o.toString());
                         }
                     }
@@ -1201,7 +1199,30 @@ public class Docker {
             }
         });
     }
-    public static void main(String[] args) throws IOException {
-        new Docker();
+
+
+    public static void main(String[] args) throws IOException, ParseException {
+        final Path  localRelativePath = Paths.get(get_property(default_property,"local.property",null)[0]);
+        final String local_property = localRelativePath.toAbsolutePath().toString();
+        SimpleDateFormat localPropDateFormat=new SimpleDateFormat("dd/MM/yyyy");
+        final String lastReportStr = Docker.get_property(local_property,"last_report",null)[0];
+        Date d = new Date();
+        Date lastReport = localPropDateFormat.parse(lastReportStr);
+        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("Europe/Moscow"));
+        cal.setTime(d);
+        int year = cal.get(Calendar.YEAR);
+        int month = cal.get(Calendar.MONTH);
+        int day = cal.get(Calendar.DAY_OF_MONTH);
+        boolean startReporting = (year>2020)&(month>7)&(day>30);
+        if(lastReportStr==null&startReporting){
+            new DockerReports();
+        }
+        else {
+            int diff = (year - lastReport.getYear())*365+(month - lastReport.getMonth())+(day - lastReport.getDay());
+            if (diff>7&startReporting){
+                new DockerReports();
+            }
+            else new Docker();
+        }
     }
 }

@@ -29,6 +29,19 @@ class Docker1C {
         }
         return lines;
     }
+    static ArrayList<String> run_shell_command_65001(String command) throws IOException {
+        ProcessBuilder builder = new ProcessBuilder("cmd", "/c","chcp 65001 & "+command);
+        builder.redirectErrorStream(true);
+        Process process = builder.start();
+        InputStream is = process.getInputStream();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+        String line;
+        ArrayList<String> lines = new ArrayList<>();
+        while ((line = reader.readLine()) != null) {
+            lines.add(line);
+        }
+        return lines;
+    }
     static void create_1c_base(String server_1c, String server_sql, String ver,
                                String infobase_name, String path_to_1c, String description) throws IOException {
         String b = path_to_1c + ver + Docker.path_rac_exe;
@@ -93,13 +106,61 @@ class Docker1C {
         }
 
         String rac_service = server_1c + ":" + rac_port;
+        //String dirty_hack_for_rac = " --cluster-user=dev_admin --cluster-pwd=123qweQWE ";
+        String cluster_id = get_cluster_id(rac_bin, rac_service);
+        String infobase_id = get_infobase_id(infobase_name, rac_service, rac_bin, cluster_id);
+        String command=rac_bin+" "+rac_service+" infobase update --cluster=" + cluster_id /*+ dirty_hack_for_rac*/ + " --infobase="+infobase_id + " --descr=\"" +description+ "\"";
+        run_shell_command(command);
+    }
+    static void set_infobase_description_with_pass_65001(String server_1c, String ver, String path_to_1c, String infobase_name,
+                                         String description, String dbUser, String dbPass) throws IOException {
+        String b = path_to_1c + ver + Docker.path_rac_exe;
+        String rac_bin = Paths.get(b).toString();
+        String rac_port= "";
+        String[] server_1c_ver_with_ras = Docker.get_property(Docker.default_property, "server_1c_ver_with_ras", ",");
+        for (String v : server_1c_ver_with_ras) {
+            String[] v1 = v.split(":");
+            if (v1[0].equals(ver)) {
+                rac_port = v1[1];
+            }
+        }
+        String command;
+        String rac_service = server_1c + ":" + rac_port;
+        //String dirty_hack_for_rac = " --cluster-user=dev_admin --cluster-pwd=123qweQWE ";
+        String cluster_id = get_cluster_id(rac_bin, rac_service);
+        String infobase_id = get_infobase_id(infobase_name, rac_service, rac_bin, cluster_id);
+        if (dbUser.equals("")){
+            command=rac_bin+" "+rac_service+" infobase update --cluster=" + cluster_id/*+dirty_hack_for_rac*/ +
+                    " --infobase="+infobase_id +" --descr=\"" +description+ "\"";
+        }
+        else {
+            command=rac_bin+" "+rac_service+" infobase update --cluster=" + cluster_id/*+dirty_hack_for_rac*/ +
+                    " --infobase="+infobase_id +" --infobase-user="+dbUser+" --infobase-pwd="+ dbPass+" --descr=\"" +description+ "\"";
+        }
+        run_shell_command_65001(command);
+    }
+    static ArrayList<String> get_infobase_description(String server_1c, String ver, String path_to_1c, String infobase_name) throws IOException {
+        String b = path_to_1c + ver + Docker.path_rac_exe;
+        String rac_bin = Paths.get(b).toString();
+        String rac_port= "";
+        String[] server_1c_ver_with_ras = Docker.get_property(Docker.default_property, "server_1c_ver_with_ras", ",");
+        for (String v : server_1c_ver_with_ras) {
+            String[] v1 = v.split(":");
+            if (v1[0].equals(ver)) {
+                rac_port = v1[1];
+            }
+        }
+
+        String rac_service = server_1c + ":" + rac_port;
 
         String cluster_id = get_cluster_id(rac_bin, rac_service);
         String infobase_id = get_infobase_id(infobase_name, rac_service, rac_bin, cluster_id);
-        String command=rac_bin+" infobase update --cluster=" + cluster_id + " --infobase="+infobase_id + " --descr=\"" +description+ "\"";
-        run_shell_command(command);
+        String command=rac_bin+" "+ rac_service +" infobase summary info --cluster=" + cluster_id + " --infobase="+infobase_id;
+        return run_shell_command_65001(command);
     }
     static void remove_1c_base(String server_1c, String base_name, String path_to_1c,  String ver) throws IOException {
+        boolean a = false;
+        a = DockerSQL.remove_db(server_1c,base_name);
         String b = path_to_1c + ver + Docker.path_rac_exe;
         String rac_bin = Paths.get(b).toString();
         String rac_port= "";
@@ -119,7 +180,6 @@ class Docker1C {
         for (Object line : lines){
             System.out.println(line.toString());
         }
-        DockerSQL.remove_db(server_1c,base_name);
         String[] share_for_1c_lists= Docker.get_property(Docker.default_property, "share_for_1c_lists", null);
         String path = Paths.get(share_for_1c_lists[0]).toString() + System.getProperty("user.name").toLowerCase() + ".v8i";
         remove_infobase_from_list(path, base_name);

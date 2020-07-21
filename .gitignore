@@ -4,3 +4,4 @@
 /deploy
 /depoy
 /conf/*.properties
+/src/main/java/com/docker/probe.java
