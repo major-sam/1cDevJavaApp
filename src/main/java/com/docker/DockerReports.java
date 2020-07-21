@@ -78,21 +78,34 @@ public class DockerReports extends JFrame{
             else {
                 innerVer[0] = ver[0];
             }
-            int op = JOptionPane.showOptionDialog(panel, pwPanel,table.getValueAt(row, 0).toString() ,
-                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE,
-                    null, opt, opt[0]);
-            if (op == 0) // pressing OK button
-            {
-                name = username.getText();
-                password = String.valueOf(pass.getPassword());
-            }
+            ArrayList<String> description = null;
             try {
-                if (!table.getValueAt(row, 1).toString().equals("removed")) {
-                    Docker1C.set_infobase_description_with_pass_65001(dev_server, innerVer[0], path_to_1c,
-                            table.getValueAt(row, 0).toString(), table.getValueAt(row, 1).toString(),name,password);
-                }
+                description = Docker1C.get_infobase_description(dev_server, innerVer[0], path_to_1c, table.getValueAt(row, 0).toString());
             } catch (IOException ioException) {
                 ioException.printStackTrace();
+            }
+            assert description != null;
+            String dbComm="";
+            if (description.size() >= 3){
+                dbComm=description.get(3).split(":")[1].replace("\"", "");
+            }
+            if (!table.getValueAt(row, 1).toString().equals(dbComm)){
+                int op = JOptionPane.showOptionDialog(panel, pwPanel,table.getValueAt(row, 0).toString() ,
+                        JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE,
+                        null, opt, opt[0]);
+                if (op == 0) // pressing OK button
+                {
+                    name = username.getText();
+                    password = String.valueOf(pass.getPassword());
+                }
+                try {
+                    if (!table.getValueAt(row, 1).toString().equals("removed")) {
+                        Docker1C.set_infobase_description_with_pass_65001(dev_server, innerVer[0], path_to_1c,
+                                table.getValueAt(row, 0).toString(), table.getValueAt(row, 1).toString(),name,password);
+                    }
+                } catch (IOException ioException) {
+                    ioException.printStackTrace();
+                }
             }
         }
         sendMail(table, dev_server, mailArr);
