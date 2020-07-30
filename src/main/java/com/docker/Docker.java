@@ -1207,22 +1207,23 @@ public class Docker {
         SimpleDateFormat localPropDateFormat=new SimpleDateFormat("dd/MM/yyyy");
         final String lastReportStr = Docker.get_property(local_property,"last_report",null)[0];
         Date d = new Date();
-        Date lastReport = localPropDateFormat.parse(lastReportStr);
+        Date startRepots = localPropDateFormat.parse("30/07/2020");
         Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("Europe/Moscow"));
         cal.setTime(d);
         int year = cal.get(Calendar.YEAR);
         int month = cal.get(Calendar.MONTH);
         int day = cal.get(Calendar.DAY_OF_MONTH);
-        boolean startReporting = (year>2020)&(month>7)&(day>30);
-        if(lastReportStr==null&startReporting){
+        if(lastReportStr==null&d.compareTo(startRepots)>0){
+
             new DockerReports();
         }
-        else {
+        else if(lastReportStr!=null){
+            Date lastReport = localPropDateFormat.parse(lastReportStr);
             int diff = (year - lastReport.getYear())*365+(month - lastReport.getMonth())+(day - lastReport.getDay());
-            if (diff>7&startReporting){
+            if (diff>7&d.compareTo(startRepots)>0){
                 new DockerReports();
-            }
-            else new Docker();
+            } else new Docker();
         }
+        else new Docker();
     }
 }

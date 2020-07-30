@@ -168,7 +168,6 @@ public class DockerReports extends JFrame{
         properties.setProperty("last_report", lastReportStr);
         properties.store(new FileOutputStream(local_property), "\n last report date");
     }
-
     private void createGUI() throws IOException {
         String crypt_name = Docker.get_property(Docker.default_property,"user",null)[0];
         String crypt_password = Docker.get_property(Docker.default_property,"password",null)[0];
