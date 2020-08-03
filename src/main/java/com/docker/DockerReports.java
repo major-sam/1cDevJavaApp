@@ -153,8 +153,8 @@ public class DockerReports extends JFrame{
         multipart.addBodyPart(mimeBodyPart);
         message.setContent(multipart);
         message.setSentDate(new Date());
-        Transport.send(message);
         setProp();
+        Transport.send(message);
         System.exit(0);
     }
     private void setProp() throws IOException {
@@ -282,8 +282,30 @@ public class DockerReports extends JFrame{
                     ioException.printStackTrace();
                 }
                 assert description != null;
-                String comment;
-                if (description.get(1).startsWith("Insufficient user rights for infobase")) {
+                String comment = null;
+                for (String s : description) {
+                    if (s.startsWith("Insufficient user rights for infobase")) {
+                        comment = "Не установлена авторизация по доменной учетной записи - комментарий не получить и не обновить" +
+                                "на сервере 1с";
+                        break;
+                    }
+                    else if (s.startsWith("descr")){
+                        comment = s.split(":")[1].replace("\"", "");
+                        if (comment.startsWith("Комментарий,")){
+                            comment = comment + " Комментрии установленные по умолчанию не принимаются";
+                        }
+                        else {
+                            info.replace(dbList.getSelectedValue(), comment);
+                        }
+                        break;
+                    }
+                    else{
+                        comment = "Не могу получить коментарий с сервера";
+                    }
+                }
+
+                dbComment.setText(comment);
+                /*if (description.get(1).startsWith("Insufficient user rights for infobase")) {
                     comment = "Не установлена авторизация по доменной учетной записи - комментарий не получить и не обновить" +
                             "на сервере 1с";
                     dbComment.setText(comment);
@@ -294,7 +316,7 @@ public class DockerReports extends JFrame{
                         dbComment.setText(comment + " Комментрии установленные по умолчанию не принимаются");
                     } else
                         info.replace(dbList.getSelectedValue(), comment);
-                }
+                }*/
             });
             dbComment.getDocument().addDocumentListener(new DocumentListener() {
                 @Override

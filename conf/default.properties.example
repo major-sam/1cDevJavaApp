@@ -2,3 +2,33 @@
 servers=sqlsrv1,sqlsrv2,sqlsrv3
 dev_server=sqldev
 #
+#use 3 digits for additional 1c ver
+server_1c_ver_with_ras=8.3.16.1148:12345,8.3.12.1790:1545
+admin_account= ADMIN_AD_ACC
+#share default backup dir on mssql with bak_dir_name value
+bak_dir_name=BAK
+1c_server= 1CDEV
+debug=true
+base_max_age_in_month=2
+share_for_1c_lists=\\\\path_to_share\\ibases\\
+# базы програмистов ^
+all_user_list=\\\\path_to_share\\test ibases\\all_users.v8i
+# Базы расшареные прогрограмистами
+log_file=\\\\Path_to_share\\log\\docker_app.log
+1c_console_command = mmc /s "c:\\program files\\1cv8\\common\\1CV8 Servers (x86-64).msc"
+path_to_1c=c:\\program files\\1cv8\\
+rac_share=\\\\Path_to_Share\\Docker_distrs\\rac\\
+path_1c_exe=\\bin\\1cv8.exe
+path_rac_exe=\\bin\\rac.exe
+#docker.property contains local vars - path_to_1c,1c_console_command,local.property
+local.property=C:\\docker\\docker.properties
+#remove lines if password changes or wrong
+#Mon Oct 28 14:31:58 MSK 2019#
+#
+#remove lines if password changes or wrong
+#Thu Jul 16 16:06:03 MSK 2020
+password=CRYPTed-PASSWORD
+domain=
+user=CRYPTED_USER
+admin_mail=ADMIN_MAIL
+email_internal_domain=INTERNAL_DOMAIN

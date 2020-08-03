@@ -78,7 +78,7 @@ public class Docker {
             run_task_button.setEnabled(true);
         }
     }
-    private String check_local_1c_bin(){
+    private static String check_local_1c_bin(){
         boolean x64_has_client = false, x86_has_client = false;
         String[] v = get_property(default_property,"server_1c_ver_with_ras",",");
         final File  X86_BIN = new File("C:\\Program Files (x86)\\1cv8"),
@@ -127,7 +127,7 @@ public class Docker {
         }
         return lp;
     }
-    private void check_local_conf(String local_property) throws IOException {
+    static void check_local_conf(String local_property) throws IOException {
         String path_to_1c;
         File local_config = new File(local_property);
         if(local_config.exists() && !local_config.isDirectory()) {
@@ -497,7 +497,7 @@ public class Docker {
                         }
                         else {
                             prop.setProperty("domain", "");
-                        }//TODO conf_path check
+                        }
                         String conf_path = ".\\conf\\default.properties";
                         prop.store(new FileOutputStream(default_property,true), "\nremove lines if password changes or wrong");
                         break;
@@ -1205,22 +1205,31 @@ public class Docker {
         final Path  localRelativePath = Paths.get(get_property(default_property,"local.property",null)[0]);
         final String local_property = localRelativePath.toAbsolutePath().toString();
         SimpleDateFormat localPropDateFormat=new SimpleDateFormat("dd/MM/yyyy");
+        final String path_to_1c = get_property(local_property,"path_to_1c",null)[0];
+        String ver = "8.3.16.1148";
+        try {
+            check_rac(path_to_1c, ver);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        check_local_conf(local_property);
         final String lastReportStr = Docker.get_property(local_property,"last_report",null)[0];
-        Date d = new Date();
+        Date now = new Date();
         Date startRepots = localPropDateFormat.parse("30/07/2020");
-        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("Europe/Moscow"));
-        cal.setTime(d);
-        int year = cal.get(Calendar.YEAR);
-        int month = cal.get(Calendar.MONTH);
-        int day = cal.get(Calendar.DAY_OF_MONTH);
-        if(lastReportStr==null&d.compareTo(startRepots)>0){
-
+        //Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("Europe/Moscow"));
+        //cal.setTime(d);
+        //int year = cal.get(Calendar.YEAR);
+        //int month = cal.get(Calendar.MONTH);
+        //int day = cal.get(Calendar.DAY_OF_MONTH);
+        if(lastReportStr==null&now.compareTo(startRepots)>0){
             new DockerReports();
         }
         else if(lastReportStr!=null){
             Date lastReport = localPropDateFormat.parse(lastReportStr);
-            int diff = (year - lastReport.getYear())*365+(month - lastReport.getMonth())+(day - lastReport.getDay());
-            if (diff>7&d.compareTo(startRepots)>0){
+            long diffInMilliesec = Math.abs(lastReport.getTime() - now.getTime());
+            long diff  = TimeUnit.DAYS.convert(diffInMilliesec, TimeUnit.MILLISECONDS);
+            //int diff = (year - lastReport.getYear())*365+(month - lastReport.getMonth())+(day - lastReport.getDay());
+            if (diff>7&now.compareTo(startRepots)>0){
                 new DockerReports();
             } else new Docker();
         }

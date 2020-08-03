@@ -155,7 +155,7 @@ class Docker1C {
 
         String cluster_id = get_cluster_id(rac_bin, rac_service);
         String infobase_id = get_infobase_id(infobase_name, rac_service, rac_bin, cluster_id);
-        String command=rac_bin+" "+ rac_service +" infobase summary info --cluster=" + cluster_id + " --infobase="+infobase_id;
+        String command="\""+rac_bin+"\" "+ rac_service +" infobase summary info --cluster=" + cluster_id + " --infobase="+infobase_id;
         return run_shell_command_65001(command);
     }
     static void remove_1c_base(String server_1c, String base_name, String path_to_1c,  String ver) throws IOException {
