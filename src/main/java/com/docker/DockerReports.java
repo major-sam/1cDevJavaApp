@@ -26,8 +26,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+
+
 public class DockerReports extends JFrame{
 
+
+    private static final String SMTP_HOST_NAME =
+            Docker.get_property(Docker.default_property,"email_server",null)[0];
+    private static final String SMTP_AUTH_PORT  =
+            Docker.get_property(Docker.default_property,"email_port",null)[0];
+    private static final String SMTP_AUTH_USER =
+            Docker.get_property(Docker.default_property,"email_user",null)[0];
+    private static final String SMTP_AUTH_ACC  =
+            Docker.get_property(Docker.default_property,"email_address",null)[0];
+    private static final String SMTP_AUTH_PWD  =
+            Docker.get_property(Docker.default_property,"email_pass",null)[0];
     private final DefaultListModel<String> listModel = new DefaultListModel<>();
     private JScrollPane dbScroll;
     private JList<String> dbList;
@@ -40,6 +53,13 @@ public class DockerReports extends JFrame{
     private JCheckBox SendCopy;
     private JTextField mailAddresArr;
     static Map<String ,String> info = new HashMap<>();
+
+
+    private static class SMTPAuthenticator extends javax.mail.Authenticator {
+        public PasswordAuthentication getPasswordAuthentication() {
+            return new PasswordAuthentication(SMTP_AUTH_USER, SMTP_AUTH_PWD);
+        }
+    }
 
     public static Map<String, String> getInfo() {
         return info;
@@ -131,14 +151,19 @@ public class DockerReports extends JFrame{
     private void sendMail(JTable table, String server, Set<String> mailArr) throws IOException, MessagingException {
         String htmlMail = getHTMLMail(table, server);
         Properties props = new Properties();
-        props.put("mail.smtp.host", "mail.kzgroup.ru");
-        props.put("mail.smtp.port", "25");
+        props.put("mail.smtp.host", SMTP_HOST_NAME);
+        props.put("mail.smtp.port", SMTP_AUTH_PORT);
         props.put("mail.debug", "true");
-        Session session = Session.getDefaultInstance(props);
+        props.put("mail.smtp.auth", "true");
+
+        Authenticator auth = new SMTPAuthenticator();
+
+
+        Session session = Session.getDefaultInstance(props,auth);
         MimeMessage message = new MimeMessage(session);
         String admin_mail = Docker.get_property(Docker.default_property,"admin_mail",null)[0];
         String email_internal_domain = Docker.get_property(Docker.default_property,"email_internal_domain",null)[0];
-        message.setFrom(new InternetAddress("dc-1c-dev-report@kzgroup.ru"));
+        message.setFrom(new InternetAddress(SMTP_AUTH_ACC));
         if (mailArr != null) {
             for (String mail : mailArr) {
                 if (mail.endsWith("@"+email_internal_domain)){
@@ -229,7 +254,7 @@ public class DockerReports extends JFrame{
                 String[] ibShare = Docker.get_property(Docker.default_property, "share_for_1c_lists", null);
                 String ibName = "Нет в списке";
                 try {
-                    ibName = Docker1C.find_infobase_in_list(ibShare[0] + userName + ".v8i", dbName[0]);
+                    ibName = Docker1C.find_infobase_in_list_65001(ibShare[0] + userName + ".v8i", dbName[0]);
                 } catch (IOException ioException) {
                     ioException.printStackTrace();
                 }

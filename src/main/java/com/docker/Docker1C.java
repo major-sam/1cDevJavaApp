@@ -57,8 +57,8 @@ class Docker1C {
         String rac_service = server_1c + ":" + rac_port;
         String cluster_id = get_cluster_id(rac_bin, rac_service);
         String create_db =  " infobase create --cluster="+cluster_id+" --create-database --name="+infobase_name+
-              "  --dbms=MSSQLServer  --locale=ru_RU --db-server="+server_sql+"  --db-name="+infobase_name +
-                "  --descr=\""+description +"\" " +rac_service ;
+              "  --dbms=MSSQLServer  --locale=ru_RU --scheduled-jobs-deny=on --db-server="+server_sql+"  --db-name="+infobase_name +
+                "  --descr=\""+description +"\" " +rac_service  ;
         String command ="\""+ rac_bin +"\""+ create_db;
         run_shell_command(command);
     }
@@ -245,6 +245,24 @@ class Docker1C {
         String l = line_out.toString();
         byte[] strToBytes = l.getBytes();
         Files.write(Paths.get(file), strToBytes);
+    }
+
+    static String find_infobase_in_list_65001(String file,String infobase) throws IOException {
+        String is_base_found = null;
+        BufferedReader in = new BufferedReader(
+                new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8)) ;
+        String line_in;
+        String prev_line = null;
+        while ((line_in = in.readLine()) != null) {
+            if(line_in.contains(infobase)){
+                is_base_found = prev_line;
+            }
+            prev_line = line_in;
+        }
+        if (is_base_found != null){
+            return is_base_found.replace("[","").replace("]","");
+        }
+        else return null;
     }
     static String find_infobase_in_list(String file,String infobase) throws IOException {
         String is_base_found = null;
