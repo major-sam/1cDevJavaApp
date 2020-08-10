@@ -17,6 +17,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
@@ -180,7 +181,7 @@ public class DockerReports extends JFrame{
         message.setSentDate(new Date());
         setProp();
         Transport.send(message);
-        System.exit(0);
+        new Docker();
     }
     private void setProp() throws IOException {
         String local_property = Docker.get_property(Docker.default_property,"local.property",null)[0];
@@ -218,6 +219,7 @@ public class DockerReports extends JFrame{
         List<String> allDb = DockerSQL.get_mssql_db_list("dc-1c-dev");
         if (allDb.size()==0){
             setProp();
+            new Docker();
         }
         else {
             for (String db : allDb) {
@@ -226,22 +228,27 @@ public class DockerReports extends JFrame{
                     info.put(db, null);
                 }
             }
-            dbList.setModel(listModel);
-            dbList.setCellRenderer(new ListColorRendererByComment());
-            dbScroll.setViewportView(dbList);
-            dbComment.setSize(10, 100);
-            dbComment.setLineWrap(true);
-            dbComment.setWrapStyleWord(true);
-            dbList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
             final String[] dbName = {null};
-            JFrame frame = new JFrame("Report Tool");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setMinimumSize(new Dimension(800, 600));
-            frame.setPreferredSize(new Dimension(800, 600));
-            frame.add(mainframe);
-            frame.pack();
-            frame.setVisible(true);
-
+            if (listModel.size()==0){
+                setProp();
+                new Docker();
+            }
+            else {
+                dbList.setModel(listModel);
+                dbList.setCellRenderer(new ListColorRendererByComment());
+                dbScroll.setViewportView(dbList);
+                dbComment.setSize(10, 100);
+                dbComment.setLineWrap(true);
+                dbComment.setWrapStyleWord(true);
+                dbList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+                JFrame frame = new JFrame("Report Tool");
+                frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+                frame.setMinimumSize(new Dimension(800, 600));
+                frame.setPreferredSize(new Dimension(800, 600));
+                frame.add(mainframe);
+                frame.pack();
+                frame.setVisible(true);
+            }
 
 //listeners
             dbList.addListSelectionListener(e -> {
@@ -308,7 +315,8 @@ public class DockerReports extends JFrame{
                 }
                 assert description != null;
                 String comment = null;
-                for (String s : description) {
+                for (String str : description) {
+                    String s = new String(str.getBytes(StandardCharsets.UTF_8),StandardCharsets.UTF_8);
                     if (s.startsWith("Insufficient user rights for infobase")) {
                         comment = "Не установлена авторизация по доменной учетной записи - комментарий не получить и не обновить" +
                                 "на сервере 1с";

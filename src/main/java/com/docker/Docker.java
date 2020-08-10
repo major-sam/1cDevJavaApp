@@ -584,7 +584,7 @@ public class Docker {
             listModel.addElement(base);
         }
     }
-    private Docker() throws IOException {
+    Docker() throws IOException {
         boolean debug = get_property(default_property,"debug",null)[0].equals("true");
         if (debug) {
             new FileOutputStream("C:\\docker\\debug.log", true).close();
@@ -1216,12 +1216,7 @@ public class Docker {
         final String lastReportStr = Docker.get_property(local_property,"last_report",null)[0];
         Date now = new Date();
         Date startRepots = localPropDateFormat.parse("30/07/2020");
-        //Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("Europe/Moscow"));
-        //cal.setTime(d);
-        //int year = cal.get(Calendar.YEAR);
-        //int month = cal.get(Calendar.MONTH);
-        //int day = cal.get(Calendar.DAY_OF_MONTH);
-        if(lastReportStr==null&now.compareTo(startRepots)>0){
+        if(lastReportStr==null|now.compareTo(startRepots)>0){
             new DockerReports();
         }
         else if(lastReportStr!=null){
