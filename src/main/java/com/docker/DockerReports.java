@@ -12,9 +12,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
@@ -44,7 +42,6 @@ public class DockerReports extends JFrame{
             Docker.get_property(Docker.default_property,"email_pass",null)[0];
     private final DefaultListModel<String> listModel = new DefaultListModel<>();
     private JScrollPane dbScroll;
-    private JList<String> dbList;
     private JButton sendButton;
     private JTextArea dbComment;
     private JButton removeDBButton;
@@ -53,7 +50,9 @@ public class DockerReports extends JFrame{
     private JButton getDescription;
     private JCheckBox SendCopy;
     private JTextField mailAddresArr;
+    private JList<String> db_List;
     static Map<String ,String> info = new HashMap<>();
+
 
 
     private static class SMTPAuthenticator extends javax.mail.Authenticator {
@@ -181,7 +180,6 @@ public class DockerReports extends JFrame{
         message.setSentDate(new Date());
         setProp();
         Transport.send(message);
-        new Docker();
     }
     private void setProp() throws IOException {
         String local_property = Docker.get_property(Docker.default_property,"local.property",null)[0];
@@ -219,44 +217,45 @@ public class DockerReports extends JFrame{
         List<String> allDb = DockerSQL.get_mssql_db_list("dc-1c-dev");
         if (allDb.size()==0){
             setProp();
-            new Docker();
         }
         else {
+            System.out.println(System.getProperty("user.name"));
             for (String db : allDb) {
                 if (db.toLowerCase().startsWith(System.getProperty("user.name").toLowerCase())) {
                     listModel.addElement(db);
                     info.put(db, null);
+                    System.out.println(db);
+                    System.out.println(listModel.elements());
+                    System.out.println(listModel.getSize());
                 }
             }
             final String[] dbName = {null};
-            if (listModel.size()==0){
-                setProp();
-                new Docker();
-            }
-            else {
-                dbList.setModel(listModel);
-                dbList.setCellRenderer(new ListColorRendererByComment());
-                dbScroll.setViewportView(dbList);
-                dbComment.setSize(10, 100);
-                dbComment.setLineWrap(true);
-                dbComment.setWrapStyleWord(true);
-                dbList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-                JFrame frame = new JFrame("Report Tool");
-                frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-                frame.setMinimumSize(new Dimension(800, 600));
-                frame.setPreferredSize(new Dimension(800, 600));
-                frame.add(mainframe);
-                frame.pack();
+            db_List.setModel(listModel);
+            System.out.println("dblist set");
+            db_List.setCellRenderer(new ListColorRendererByComment());
+            dbScroll.setViewportView(db_List);
+            dbComment.setSize(10, 100);
+            dbComment.setLineWrap(true);
+            dbComment.setWrapStyleWord(true);
+            db_List.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            JFrame frame = new JFrame("Report Tool");
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame.setMinimumSize(new Dimension(800, 600));
+            frame.setPreferredSize(new Dimension(800, 600));
+            frame.add(mainframe);
+            frame.pack();
+            if (listModel.getSize() > 0) {
                 frame.setVisible(true);
-            }
+            } else setProp();
+
 
 //listeners
-            dbList.addListSelectionListener(e -> {
+            db_List.addListSelectionListener(e -> {
                 getDescription.setEnabled(true);
-                if (dbList.getSelectedIndex() == -1) {
-                    dbList.setSelectedIndex(0);
+                if (db_List.getSelectedIndex() == -1) {
+                    db_List.setSelectedIndex(0);
                 }
-                dbName[0] = dbList.getSelectedValue();
+                dbName[0] = db_List.getSelectedValue();
                 String userName = System.getProperty("user.name").toLowerCase();
                 String[] ibShare = Docker.get_property(Docker.default_property, "share_for_1c_lists", null);
                 String ibName = "Нет в списке";
@@ -277,7 +276,7 @@ public class DockerReports extends JFrame{
             });
             removeDBButton.addActionListener(e -> {
                 int approve;
-                String infobase = dbList.getSelectedValue();
+                String infobase = db_List.getSelectedValue();
                 approve = JOptionPane.showConfirmDialog(mainframe, "Удаляем базу " + infobase + " ?", "Удаление базы", JOptionPane.YES_NO_OPTION);
                 if (approve == 0) {
                     try {
@@ -298,7 +297,7 @@ public class DockerReports extends JFrame{
                         }
                     }
                     info.replace(infobase, "removed");
-                    dbList.setModel(newListModel);
+                    db_List.setModel(newListModel);
                 }
             });
             getDescription.addActionListener(e -> {
@@ -316,7 +315,14 @@ public class DockerReports extends JFrame{
                 assert description != null;
                 String comment = null;
                 for (String str : description) {
-                    String s = new String(str.getBytes(StandardCharsets.UTF_8),StandardCharsets.UTF_8);
+                    String enc = System.getProperty("file.encoding");
+                    String s = null;
+                    try {
+                        s = new String(str.getBytes(enc),StandardCharsets.UTF_8);
+                    } catch (UnsupportedEncodingException unsupportedEncodingException) {
+                        unsupportedEncodingException.printStackTrace();
+                    }
+                    assert s != null;
                     if (s.startsWith("Insufficient user rights for infobase")) {
                         comment = "Не установлена авторизация по доменной учетной записи - комментарий не получить и не обновить" +
                                 "на сервере 1с";
@@ -328,7 +334,7 @@ public class DockerReports extends JFrame{
                             comment = comment + " Комментрии установленные по умолчанию не принимаются";
                         }
                         else {
-                            info.replace(dbList.getSelectedValue(), comment);
+                            info.replace(db_List.getSelectedValue(), comment);
                         }
                         break;
                     }
@@ -338,33 +344,21 @@ public class DockerReports extends JFrame{
                 }
 
                 dbComment.setText(comment);
-                /*if (description.get(1).startsWith("Insufficient user rights for infobase")) {
-                    comment = "Не установлена авторизация по доменной учетной записи - комментарий не получить и не обновить" +
-                            "на сервере 1с";
-                    dbComment.setText(comment);
-                } else {
-                    comment = description.get(3).split(":")[1].replace("\"", "");
-                    dbComment.setText(comment);
-                    if (comment.startsWith("Комментарий,")) {
-                        dbComment.setText(comment + " Комментрии установленные по умолчанию не принимаются");
-                    } else
-                        info.replace(dbList.getSelectedValue(), comment);
-                }*/
             });
             dbComment.getDocument().addDocumentListener(new DocumentListener() {
                 @Override
                 public void insertUpdate(DocumentEvent documentEvent) {
-                    info.replace(dbList.getSelectedValue(), dbComment.getText());
+                    info.replace(db_List.getSelectedValue(), dbComment.getText());
                 }
 
                 @Override
                 public void removeUpdate(DocumentEvent documentEvent) {
-                    info.replace(dbList.getSelectedValue(), dbComment.getText());
+                    info.replace(db_List.getSelectedValue(), dbComment.getText());
                 }
 
                 @Override
                 public void changedUpdate(DocumentEvent documentEvent) {
-                    info.replace(dbList.getSelectedValue(), dbComment.getText());
+                    info.replace(db_List.getSelectedValue(), dbComment.getText());
                 }
             });
             sendButton.addActionListener(e -> {

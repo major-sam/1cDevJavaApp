@@ -25,11 +25,15 @@
             <properties/>
             <border type="none"/>
             <children>
-              <component id="e1f26" class="javax.swing.JList" binding="dbList">
+              <component id="e2a45" class="javax.swing.JList" binding="db_List">
                 <constraints/>
                 <properties>
-                  <model/>
+                  <selectionBackground color="-11833681"/>
+                  <selectionMode value="0"/>
                 </properties>
+                <clientProperties>
+                  <List.isFileList class="java.lang.Boolean" value="false"/>
+                </clientProperties>
               </component>
             </children>
           </scrollpane>
